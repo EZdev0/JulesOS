@@ -3,6 +3,7 @@
 #include <string>
 #include <unistd.h>
 #include <cstdlib>
+#include <vector>
 
 using namespace JulesOS;
 
@@ -28,28 +29,37 @@ void print_banner() {
 )" << RESET;
     std::cout << FG_MAGENTA << BOLD << "    The Immutable, Intelligent, High-Performance Kernel Interface" << RESET << "\n";
     std::cout << FG_YELLOW << "    Type 'help' for built-in commands. Running on: " << FG_GREEN;
-    system("uname -r");
+    fflush(stdout);
+    if (system("uname -r") != 0) {
+        // Ignore failure, but we checked the return value
+    }
     std::cout << RESET << "\n";
 }
 
 std::string get_prompt() {
-    // Basic dynamic prompt showing current directory
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) != NULL) {
         std::string dir(cwd);
-        // Minimalize home directory path
         size_t pos = dir.find("/home");
         if (pos == 0) {
             dir.replace(0, 5, "~");
         }
-
         return BOLD + FG_BLUE + "╭─(" + FG_CYAN + "jules@os" + FG_BLUE + ")-[" + FG_GREEN + dir + FG_BLUE + "]\n╰─" + FG_MAGENTA + "❯ " + RESET;
     }
     return BOLD + FG_MAGENTA + "❯ " + RESET;
 }
 
 int main(int argc, char* argv[]) {
-    // Handle command execution from scripts/init.sh if passed as argument
+    // Check for -c flag (standard shell behavior)
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-c" && i + 1 < argc) {
+            execute_command(argv[i+1]);
+            return 0;
+        }
+    }
+
+    // Handle other arguments as a single command
     if (argc > 1) {
         std::string cmd = "";
         for (int i = 1; i < argc; ++i) {
@@ -68,18 +78,17 @@ int main(int argc, char* argv[]) {
     while (true) {
         std::cout << get_prompt();
         if (!std::getline(std::cin, input)) {
-            // Handle EOF (Ctrl+D) gracefully
             std::cout << "\nLogging out of Jules OS...\n";
             break;
         }
 
-        // Trim whitespace
-        size_t first = input.find_first_not_of(' ');
+        size_t first = input.find_first_not_of(" \t\n\r");
         if (std::string::npos == first) continue;
-        size_t last = input.find_last_not_of(' ');
+        size_t last = input.find_last_not_of(" \t\n\r");
         input = input.substr(first, (last - first + 1));
 
         if (input.empty()) continue;
+        if (input == "exit") break;
 
         execute_command(input);
     }
