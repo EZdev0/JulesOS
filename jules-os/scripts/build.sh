@@ -6,9 +6,10 @@ JULES_DIR="$(pwd)"
 BUILD_DIR="${JULES_DIR}/build"
 ISO_DIR="${JULES_DIR}/iso"
 ROOTFS_DIR="${BUILD_DIR}/rootfs"
-KERNEL_VERSION="3.21.2" # Alpine branch
-ALPINE_TAR="alpine-minirootfs-3.21.2-x86_64.tar.gz"
-ALPINE_URL="https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/x86_64/${ALPINE_TAR}"
+ALPINE_VERSION="3.21"
+ALPINE_RELEASE="3.21.2"
+ALPINE_TAR="alpine-minirootfs-${ALPINE_RELEASE}-x86_64.tar.gz"
+ALPINE_URL="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/x86_64/${ALPINE_TAR}"
 
 echo "================================================"
 echo "      Building Jules OS (No Simulation)         "
@@ -22,84 +23,109 @@ mkdir -p "${BUILD_DIR}" "${ISO_DIR}/boot" "${ROOTFS_DIR}"
 # 1. Compile the Jules Shell (C++)
 echo "[+] Compiling Jules Shell (C++ Core)..."
 cd "${BUILD_DIR}"
-cmake ..
+# Detect if we should try static linking
+if ld --help | grep -q "static"; then
+    STATIC_OPT="-DSTATIC_BUILD=ON"
+else
+    STATIC_OPT="-DSTATIC_BUILD=OFF"
+fi
+cmake ${STATIC_OPT} ..
 make -j$(nproc)
 cd "${JULES_DIR}"
 
-# 2. Download Alpine Minirootfs (The Real Linux Base)
+# 2. Download Alpine Minirootfs
 echo "[+] Fetching minimal Linux RootFS (Alpine)..."
-wget -qO "${BUILD_DIR}/${ALPINE_TAR}" "${ALPINE_URL}"
+if [ ! -f "${BUILD_DIR}/${ALPINE_TAR}" ]; then
+    wget -qO "${BUILD_DIR}/${ALPINE_TAR}" "${ALPINE_URL}"
+fi
 
 # Extract RootFS
 echo "[+] Extracting RootFS..."
 mkdir -p "${ROOTFS_DIR}"
 tar -xf "${BUILD_DIR}/${ALPINE_TAR}" -C "${ROOTFS_DIR}"
 
-# 3. Integrate Jules Shell and Initialization Scripts
+# 3. Integrate Jules OS Core files into RootFS
 echo "[+] Integrating Jules OS Core files into RootFS..."
-# Place the compiled C++ shell into the OS
 cp "${BUILD_DIR}/jules_shell" "${ROOTFS_DIR}/bin/jules_shell"
 chmod +x "${ROOTFS_DIR}/bin/jules_shell"
 
-# Place our init script as the main boot script
+# If it's a dynamic build, we need to copy libraries if we are on a compatible system
+# But usually, it's better to just build it statically for the ISO.
+# On Termux, building static might be hard, so we warn the user.
+if [ "$(ldd "${BUILD_DIR}/jules_shell" 2>/dev/null | grep "not a dynamic executable")" == "" ]; then
+    echo "[!] WARNING: Jules Shell is dynamically linked. It might not run in the Guest OS."
+    echo "[!] Consider installing static-libs (e.g., 'pkg install static-libs' on Termux if available)."
+fi
+
+# Place our init script
 cp "${JULES_DIR}/scripts/init.sh" "${ROOTFS_DIR}/init"
 chmod +x "${ROOTFS_DIR}/init"
 
-# Symlink so standard tools find our shell if needed
-ln -sf /bin/jules_shell "${ROOTFS_DIR}/bin/sh" 2>/dev/null || true
-
-# Pre-install some networking / system configs in the rootfs
-# We mount standard directories so 'apk' or scripts work easily inside if chrooted
+# Ensure /home and other dirs exist
 mkdir -p "${ROOTFS_DIR}/home"
+mkdir -p "${ROOTFS_DIR}/root"
+mkdir -p "${ROOTFS_DIR}/etc/apk"
 
-# 4. We need a Kernel.
-# Since compiling a kernel from source takes ~1-2 hours, we will fetch Alpine's pre-compiled 'virt' kernel
-# which is perfect and extremely fast for QEMU/Termux.
+# 4. Fetch Kernel
 echo "[+] Fetching pre-compiled Linux Kernel (Alpine virt-kernel)..."
 mkdir -p "${BUILD_DIR}/kernel_pkg"
 cd "${BUILD_DIR}/kernel_pkg"
-# Find the exact kernel package version
-KERNEL_PKG_URL=$(wget -qO- https://dl-cdn.alpinelinux.org/alpine/v3.21/main/x86_64/ | grep -o 'linux-virt-[0-9].*\.apk' | tail -n 1)
-wget -q "https://dl-cdn.alpinelinux.org/alpine/v3.21/main/x86_64/${KERNEL_PKG_URL}"
+KERNEL_PKG_URL=$(wget -qO- https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main/x86_64/ | grep -o 'linux-virt-[0-9].*\.apk' | head -n 1)
+wget -q "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main/x86_64/${KERNEL_PKG_URL}"
 tar -zxf "${KERNEL_PKG_URL}"
 cp boot/vmlinuz-virt "${ISO_DIR}/boot/bzImage"
-
-# We don't use their initramfs, we pack our own!
 cd "${JULES_DIR}"
 
-# 5. Pack our RootFS into a bootable Initramfs
+# 5. Pack Initramfs
 echo "[+] Packing Jules OS RootFS (Initramfs)..."
 cd "${ROOTFS_DIR}"
 find . | cpio -o -H newc | gzip -9 > "${ISO_DIR}/boot/initrd.img"
 cd "${JULES_DIR}"
 
-# 6. Configure the Bootloader (Syslinux/Isolinux)
-echo "[+] Configuring Syslinux (Invisible Boot)..."
+# 6. Configure Bootloader
+echo "[+] Configuring Syslinux..."
 mkdir -p "${ISO_DIR}/boot/syslinux"
 cat << 'EOF_SYSLINUX' > "${ISO_DIR}/boot/syslinux/syslinux.cfg"
 DEFAULT jules
 LABEL jules
   KERNEL /boot/bzImage
   INITRD /boot/initrd.img
-  # quiet loglevel=0 console=ttyS0 makes it "invisible" on the screen (fast boot)
   APPEND root=/dev/ram0 rw console=ttyS0 quiet loglevel=0
 EOF_SYSLINUX
 
-# 7. Create the bootable ISO
+# 7. Create ISO
 echo "[+] Creating Bootable ISO Image (JulesOS.iso)..."
-# We use xorriso to create an ISO that boots on legacy and EFI (via isohybrid)
-# Using a simplified xorriso command for syslinux
-cp /usr/lib/syslinux/modules/bios/ldlinux.c32 "${ISO_DIR}/boot/syslinux/"
-cp /usr/lib/ISOLINUX/isolinux.bin "${ISO_DIR}/boot/syslinux/" 2>/dev/null || cp /usr/lib/syslinux/modules/bios/isolinux.bin "${ISO_DIR}/boot/syslinux/"
+# Check for xorriso
+if command -v xorriso >/dev/null 2>&1; then
+    # Try to find syslinux files in common locations
+    SYSLINUX_DIR=""
+    for d in /usr/lib/syslinux/modules/bios /usr/share/syslinux /usr/lib/ISOLINUX /usr/lib/syslinux/bios; do
+        if [ -f "$d/isolinux.bin" ]; then
+            SYSLINUX_DIR="$d"
+            break
+        fi
+    done
 
-xorriso -as mkisofs -o JulesOS.iso \
-  -b boot/syslinux/isolinux.bin \
-  -c boot/syslinux/boot.cat \
-  -no-emul-boot -boot-load-size 4 -boot-info-table \
-  -R -J -v -T "${ISO_DIR}" >/dev/null 2>&1
+    if [ -n "$SYSLINUX_DIR" ]; then
+        cp "$SYSLINUX_DIR/isolinux.bin" "${ISO_DIR}/boot/syslinux/"
+        [ -f "$SYSLINUX_DIR/ldlinux.c32" ] && cp "$SYSLINUX_DIR/ldlinux.c32" "${ISO_DIR}/boot/syslinux/"
+
+        xorriso -as mkisofs -o JulesOS.iso \
+          -b boot/syslinux/isolinux.bin \
+          -c boot/syslinux/boot.cat \
+          -no-emul-boot -boot-load-size 4 -boot-info-table \
+          -R -J -v -T "${ISO_DIR}" >/dev/null 2>&1
+        echo "[SUCCESS] JulesOS.iso created."
+    else
+        echo "[!] WARNING: isolinux.bin not found. ISO might not be bootable."
+        echo "[!] Creating a non-bootable ISO for inspection..."
+        xorriso -as mkisofs -o JulesOS.iso -R -J "${ISO_DIR}" >/dev/null 2>&1
+    fi
+else
+    echo "[!] xorriso not found. Skipping ISO creation."
+    echo "[i] You can still use the files in ${ISO_DIR}/boot with QEMU directly."
+fi
 
 echo "================================================"
-echo "[SUCCESS] Jules OS built successfully!"
-echo "[SUCCESS] Image: $(pwd)/JulesOS.iso"
-echo "[SUCCESS] Run ./scripts/boot.sh to test it!"
+echo "[SUCCESS] Build process finished."
 echo "================================================"
