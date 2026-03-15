@@ -34,3 +34,16 @@ echo "[OK] init.sh syntax is valid."
 echo "================================================"
 echo "[SUCCESS] All component tests passed."
 echo "================================================"
+
+# 5. Test new commands
+echo "[+] Testing new fetch command..."
+./build_test/jules_shell -c "fetch" > /dev/null
+echo "[OK] 'fetch' command executed."
+
+echo "[+] Testing new jupdate command..."
+./build_test/jules_shell -c "jupdate" > /dev/null
+echo "[OK] 'jupdate' command executed."
+
+echo "[+] Testing enhanced boost command..."
+./build_test/jules_shell -c "boost" > /dev/null
+echo "[OK] 'boost' command executed."

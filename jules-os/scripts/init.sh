@@ -6,7 +6,7 @@
 mount -t proc none /proc
 mount -t sysfs none /sys
 mount -t devtmpfs none /dev
-mount -t tmpfs -o size=512m tmpfs /tmp
+mount -t tmpfs -o size=1024m tmpfs /tmp
 mount -t tmpfs -o mode=1777 none /run
 
 # Set hostname to JulesOS
@@ -43,12 +43,9 @@ for dev in /dev/vda2 /dev/sda2 /dev/vdb /dev/sdb; do
 done
 
 if [ -n "$VAULT_DEV" ]; then
-    # Try to mount, if it fails, format it (assuming it is a new data.img)
     if ! mount "$VAULT_DEV" /home 2>/dev/null; then
         echo "[ INFO ] Formatting new Vault at $VAULT_DEV..."
-        # We need to make sure mkfs.ext4 is available, usually it is in alpine minirootfs if e2fsprogs is installed
-        # If not, we might need to add it to the rootfs during build
-        mkfs.ext4 -F "$VAULT_DEV"
+        mkfs.ext4 -F "$VAULT_DEV" 2>/dev/null || mkfs.vfat "$VAULT_DEV" 2>/dev/null
         mount "$VAULT_DEV" /home
     fi
     echo "[ OK ] Vault Mounted at /home."
@@ -57,19 +54,27 @@ else
     mount -t tmpfs tmpfs /home
 fi
 
+# Create some basic structure in /home
+mkdir -p /home/jules
+if [ ! -f /home/jules/.profile ]; then
+    echo "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" > /home/jules/.profile
+    echo "export HOME=/home/jules" >> /home/jules/.profile
+    echo "alias ls='ls --color=auto'" >> /home/jules/.profile
+    echo "alias ll='ls -lah --color=auto'" >> /home/jules/.profile
+    echo "alias grep='grep --color=auto'" >> /home/jules/.profile
+    echo "PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '" >> /home/jules/.profile
+fi
+
+export HOME=/home/jules
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+cd /home/jules
+
 # Apply performance tuning
 echo "[ OK ] Applying Jules OS Tuning..."
 echo 3 > /proc/sys/vm/drop_caches
 echo 1 > /proc/sys/vm/overcommit_memory
+echo 10 > /proc/sys/vm/swappiness
 
-# Create some basic structure in /home if empty
-if [ ! -d /home/jules ]; then
-    mkdir -p /home/jules
-    echo "Welcome to Jules OS!" > /home/jules/README.txt
-fi
-export HOME=/home/jules
-cd /home/jules
-
-# Start the Jules Shell directly on TTY1
+# Start the Jules Shell directly
 echo "[ OK ] Handing over control to Jules Shell (C++ Core)..."
 exec /bin/jules_shell
