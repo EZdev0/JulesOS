@@ -6,7 +6,7 @@ This file acts as a persistent memory and state tracker for Jules OS, ensuring c
 
 ## 1. Core Architecture (What we built)
 - **Jules Shell (C++)**: Replacing `/bin/sh`, located at `/bin/jules_shell`. A static, dependency-free binary offering dynamic prompts and core commands (`boost`, `python`, `status`, `update`).
-- **Immutable RootFS (OverlayFS)**: Built on Alpine Linux minirootfs. Modifies RAM (`tmpfs`), meaning every reboot is a completely clean, un-hackable slate.
+- **Immutable RootFS (OverlayFS)**: Built on Alpine Linux minirootfs. Modifies RAM (`tmpfs`), meaning every reboot restores a pristine state, making it highly resilient against persistent malware.
 - **Persistent Data Vault (`data.img`)**: The `boot.sh` script maps a virtual 1GB qcow2 drive to `/home`. All user data goes here and survives resets.
 - **Automated Toolchain**: `build.sh` (Downloads kernel, compiles C++, packs ISO) and `boot.sh` (Detects ARM vs x86, runs QEMU headless for Termux).
 
