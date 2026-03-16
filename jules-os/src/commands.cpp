@@ -1,8 +1,6 @@
 #include "commands.h"
 #include <iostream>
 #include <cstdlib>
-#include <vector>
-#include <sstream>
 #include <unistd.h>
 #include <sys/wait.h>
 
