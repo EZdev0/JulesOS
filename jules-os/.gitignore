@@ -1,4 +1,8 @@
 build/
 iso/
+build_test/
+build_unit_tests/
+data.img
 JulesOS.iso
-*.img
+.vscode/
+compile_commands.json

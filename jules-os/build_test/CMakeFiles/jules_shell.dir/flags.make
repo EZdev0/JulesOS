@@ -6,4 +6,5 @@ CXX_DEFINES =
 
 CXX_INCLUDES =
 
-CXX_FLAGS =  -O3 -Wall -Wextra -fno-exceptions -fno-rtti -std=gnu++17
+CXX_FLAGS =  -O3 -Wall -Wextra -std=gnu++17
+
