@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <cstdlib>
 #include <vector>
+#include <sys/utsname.h>
 
 using namespace JulesOS;
 
@@ -29,9 +30,11 @@ void print_banner() {
 )" << RESET;
     std::cout << FG_MAGENTA << BOLD << "    The Immutable, Intelligent, High-Performance Kernel Interface" << RESET << "\n";
     std::cout << FG_YELLOW << "    Type 'help' for built-in commands. Running on: " << FG_GREEN;
-    fflush(stdout);
-    if (system("uname -r") != 0) {
-        // Ignore failure, but we checked the return value
+    struct utsname buffer;
+    if (uname(&buffer) == 0) {
+        std::cout << buffer.release;
+    } else {
+        std::cout << "unknown";
     }
     std::cout << RESET << "\n";
 }
