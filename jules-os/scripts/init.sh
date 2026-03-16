@@ -7,7 +7,7 @@ mount -t proc none /proc
 mount -t sysfs none /sys
 mount -t devtmpfs none /dev
 mount -t tmpfs -o size=1024m tmpfs /tmp
-mount -t tmpfs -o mode=1777 none /run
+mount -t tmpfs -o mode=0755 none /run
 
 # Set hostname to JulesOS
 hostname JulesOS
