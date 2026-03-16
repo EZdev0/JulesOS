@@ -2,7 +2,6 @@
 #include <iostream>
 #include <cstdlib>
 #include <vector>
-#include <sstream>
 #include <unistd.h>
 #include <sys/wait.h>
 
@@ -110,7 +109,6 @@ void run_jupdate() {
     std::cout << COLOR_BLUE << "Info: Jules OS is currently at the latest version (1.0.0)." << COLOR_RESET << "\n";
     std::cout << COLOR_BLUE << "Info: Updates are applied to the base image and require reboot." << COLOR_RESET << "\n\n";
 }
-
 
 void run_clear() {
     std::cout << "\033[2J\033[1;1H";
