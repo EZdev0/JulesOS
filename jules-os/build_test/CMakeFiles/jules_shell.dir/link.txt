@@ -1,1 +1,0 @@
-/usr/bin/c++  -O3 -Wall -Wextra -fno-exceptions -fno-rtti CMakeFiles/jules_shell.dir/src/shell.cpp.o CMakeFiles/jules_shell.dir/src/commands.cpp.o -o jules_shell

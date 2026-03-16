@@ -1,3 +1,0 @@
-/app/jules-os/build_test/CMakeFiles/jules_shell.dir
-/app/jules-os/build_test/CMakeFiles/edit_cache.dir
-/app/jules-os/build_test/CMakeFiles/rebuild_cache.dir
