@@ -15,8 +15,6 @@ const std::string FG_MAGENTA = "\033[35m";
 const std::string FG_GREEN = "\033[32m";
 const std::string FG_YELLOW = "\033[33m";
 const std::string FG_BLUE = "\033[34m";
-const std::string BG_BLUE = "\033[44m";
-const std::string FG_WHITE = "\033[37m";
 
 void print_banner() {
     std::cout << FG_CYAN << BOLD << R"(
