@@ -111,9 +111,6 @@ void run_jupdate() {
     std::cout << COLOR_BLUE << "Info: Updates are applied to the base image and require reboot." << COLOR_RESET << "\n\n";
 }
 
-void run_update() {
-    run_jupdate();
-}
 
 void run_clear() {
     std::cout << "\033[2J\033[1;1H";
