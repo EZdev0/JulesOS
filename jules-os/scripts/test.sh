@@ -20,6 +20,25 @@ echo "[OK] 'help' command executed."
 ./jules_shell -c "clear" > /dev/null
 echo "[OK] 'clear' command executed."
 
+# 2.1 Test Edge Cases (Empty/Whitespace commands)
+echo "[+] Testing empty command execution..."
+EMPTY_OUT=$(./jules_shell -c "" 2>&1)
+if [ -z "$EMPTY_OUT" ]; then
+    echo "[OK] Empty command handled correctly (no output)."
+else
+    echo "[ERROR] Empty command produced output: $EMPTY_OUT"
+    exit 1
+fi
+
+echo "[+] Testing whitespace-only command execution..."
+WHITE_OUT=$(./jules_shell -c "   " 2>&1)
+if [ -z "$WHITE_OUT" ]; then
+    echo "[OK] Whitespace command handled correctly (no output)."
+else
+    echo "[ERROR] Whitespace command produced output: $WHITE_OUT"
+    exit 1
+fi
+
 # 3. Test build script logic
 echo "[+] Checking build script integrity..."
 cd ..

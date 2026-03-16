@@ -144,7 +144,11 @@ void execute_external(const std::string& cmd) {
 }
 
 void execute_command(const std::string& cmd) {
-    if (cmd.empty()) return;
+    std::string trimmed = cmd;
+    trimmed.erase(0, trimmed.find_first_not_of(" \t\n\r"));
+    trimmed.erase(trimmed.find_last_not_of(" \t\n\r") + 1);
+
+    if (trimmed.empty()) return;
 
     if (cmd == "help") {
         show_help();
