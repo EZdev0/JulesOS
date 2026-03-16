@@ -6,7 +6,6 @@
 #include <fstream>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <string.h>
 
 namespace JulesOS {
 
