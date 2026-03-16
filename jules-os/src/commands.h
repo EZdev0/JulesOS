@@ -5,15 +5,17 @@
 
 namespace JulesOS {
 
-// Command handlers
 void execute_command(const std::string& cmd);
 void show_help();
 void show_status();
 void run_boost();
 void run_python();
 void run_update();
+void run_jupdate();
+void run_fetch();
 void run_clear();
+void run_system(const char* command);
 
 } // namespace JulesOS
 
-#endif // COMMANDS_H
+#endif

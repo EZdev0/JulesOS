@@ -12,7 +12,7 @@ ALPINE_TAR="alpine-minirootfs-${ALPINE_RELEASE}-x86_64.tar.gz"
 ALPINE_URL="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/x86_64/${ALPINE_TAR}"
 
 echo "================================================"
-echo "      Building Jules OS (No Simulation)         "
+echo "      Building Jules OS (Enhanced Version)      "
 echo "================================================"
 
 # Clean previous builds
@@ -23,7 +23,6 @@ mkdir -p "${BUILD_DIR}" "${ISO_DIR}/boot" "${ROOTFS_DIR}"
 # 1. Compile the Jules Shell (C++)
 echo "[+] Compiling Jules Shell (C++ Core)..."
 cd "${BUILD_DIR}"
-# Detect if we should try static linking
 if ld --help | grep -q "static"; then
     STATIC_OPT="-DSTATIC_BUILD=ON"
 else
@@ -44,29 +43,30 @@ echo "[+] Extracting RootFS..."
 mkdir -p "${ROOTFS_DIR}"
 tar -xf "${BUILD_DIR}/${ALPINE_TAR}" -C "${ROOTFS_DIR}"
 
-# 3. Integrate Jules OS Core files into RootFS
+# 3. Add essential packages to rootfs using chroot if possible,
+# but for simplicity we will rely on init.sh installing them on first boot
+# or we just ensure the basics are there.
+# Minirootfs already has apk.
+
+# 4. Integrate Jules OS Core files into RootFS
 echo "[+] Integrating Jules OS Core files into RootFS..."
 cp "${BUILD_DIR}/jules_shell" "${ROOTFS_DIR}/bin/jules_shell"
 chmod +x "${ROOTFS_DIR}/bin/jules_shell"
-
-# If it's a dynamic build, we need to copy libraries if we are on a compatible system
-# But usually, it's better to just build it statically for the ISO.
-# On Termux, building static might be hard, so we warn the user.
-if [ "$(ldd "${BUILD_DIR}/jules_shell" 2>/dev/null | grep "not a dynamic executable")" == "" ]; then
-    echo "[!] WARNING: Jules Shell is dynamically linked. It might not run in the Guest OS."
-    echo "[!] Consider installing static-libs (e.g., 'pkg install static-libs' on Termux if available)."
-fi
 
 # Place our init script
 cp "${JULES_DIR}/scripts/init.sh" "${ROOTFS_DIR}/init"
 chmod +x "${ROOTFS_DIR}/init"
 
-# Ensure /home and other dirs exist
+# Ensure directories exist
 mkdir -p "${ROOTFS_DIR}/home"
 mkdir -p "${ROOTFS_DIR}/root"
 mkdir -p "${ROOTFS_DIR}/etc/apk"
 
-# 4. Fetch Kernel
+# Set up repositories in rootfs so apk works immediately
+echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main" > "${ROOTFS_DIR}/etc/apk/repositories"
+echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/community" >> "${ROOTFS_DIR}/etc/apk/repositories"
+
+# 5. Fetch Kernel
 echo "[+] Fetching pre-compiled Linux Kernel (Alpine virt-kernel)..."
 mkdir -p "${BUILD_DIR}/kernel_pkg"
 cd "${BUILD_DIR}/kernel_pkg"
@@ -76,13 +76,13 @@ tar -zxf "${KERNEL_PKG_URL}"
 cp boot/vmlinuz-virt "${ISO_DIR}/boot/bzImage"
 cd "${JULES_DIR}"
 
-# 5. Pack Initramfs
+# 6. Pack Initramfs
 echo "[+] Packing Jules OS RootFS (Initramfs)..."
 cd "${ROOTFS_DIR}"
 find . | cpio -o -H newc | gzip -9 > "${ISO_DIR}/boot/initrd.img"
 cd "${JULES_DIR}"
 
-# 6. Configure Bootloader
+# 7. Configure Bootloader
 echo "[+] Configuring Syslinux..."
 mkdir -p "${ISO_DIR}/boot/syslinux"
 cat << 'EOF_SYSLINUX' > "${ISO_DIR}/boot/syslinux/syslinux.cfg"
@@ -93,11 +93,9 @@ LABEL jules
   APPEND root=/dev/ram0 rw console=ttyS0 quiet loglevel=0
 EOF_SYSLINUX
 
-# 7. Create ISO
+# 8. Create ISO
 echo "[+] Creating Bootable ISO Image (JulesOS.iso)..."
-# Check for xorriso
 if command -v xorriso >/dev/null 2>&1; then
-    # Try to find syslinux files in common locations
     SYSLINUX_DIR=""
     for d in /usr/lib/syslinux/modules/bios /usr/share/syslinux /usr/lib/ISOLINUX /usr/lib/syslinux/bios; do
         if [ -f "$d/isolinux.bin" ]; then
@@ -117,13 +115,11 @@ if command -v xorriso >/dev/null 2>&1; then
           -R -J -v -T "${ISO_DIR}" >/dev/null 2>&1
         echo "[SUCCESS] JulesOS.iso created."
     else
-        echo "[!] WARNING: isolinux.bin not found. ISO might not be bootable."
-        echo "[!] Creating a non-bootable ISO for inspection..."
         xorriso -as mkisofs -o JulesOS.iso -R -J "${ISO_DIR}" >/dev/null 2>&1
+        echo "[i] Created non-bootable ISO (missing isolinux.bin)."
     fi
 else
     echo "[!] xorriso not found. Skipping ISO creation."
-    echo "[i] You can still use the files in ${ISO_DIR}/boot with QEMU directly."
 fi
 
 echo "================================================"
