@@ -17,14 +17,7 @@ const std::string BOLD = "\033[1m";
 
 void run_system(const char* command) {
     int ret = system(command);
-    if (ret != 0) {
-        if (WIFEXITED(ret)) {
-            int exit_code = WEXITSTATUS(ret);
-            if (exit_code != 0 && exit_code != 127) {
-                // std::cerr << COLOR_RED << "[ERROR] Command failed with exit code: " << exit_code << COLOR_RESET << std::endl;
-            }
-        }
-    }
+    (void)ret;
 }
 
 void show_help() {
