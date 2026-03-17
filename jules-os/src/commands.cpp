@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <vector>
 
 namespace JulesOS {
 
@@ -129,9 +130,56 @@ void execute_external(const std::string& cmd) {
         return;
     }
 
-    int ret = system(cmd.c_str());
-    if (ret == -1) {
-        std::cerr << COLOR_RED << "Failed to execute: " << cmd << COLOR_RESET << std::endl;
+    std::vector<std::string> args;
+    std::string current;
+    bool in_quotes = false;
+    char quote_char = '\0';
+
+    for (size_t i = 0; i < cmd.length(); ++i) {
+        char c = cmd[i];
+        if (in_quotes) {
+            if (c == quote_char) {
+                in_quotes = false;
+                if (current.empty()) {
+                    args.push_back(""); // handle empty strings like ""
+                }
+            } else {
+                current += c;
+            }
+        } else {
+            if (c == '"' || c == '\'') {
+                in_quotes = true;
+                quote_char = c;
+            } else if (std::isspace(c)) {
+                if (!current.empty() || (i > 0 && (cmd[i-1] == '"' || cmd[i-1] == '\''))) {
+                    if (!current.empty()) args.push_back(current);
+                    current.clear();
+                }
+            } else {
+                current += c;
+            }
+        }
+    }
+    if (!current.empty()) {
+        args.push_back(current);
+    }
+
+    if (args.empty()) return;
+
+    std::vector<char*> c_args;
+    for (auto& arg : args) c_args.push_back(&arg[0]);
+    c_args.push_back(nullptr);
+
+    pid_t pid = fork();
+    if (pid == -1) {
+        std::cerr << COLOR_RED << "Failed to fork" << COLOR_RESET << std::endl;
+    } else if (pid == 0) {
+        execvp(c_args[0], c_args.data());
+        std::cerr << COLOR_RED << "Failed to execute: " << c_args[0] << COLOR_RESET << std::endl;
+        exit(127);
+    } else {
+        int status;
+        waitpid(pid, &status, 0);
     }
 }
 
