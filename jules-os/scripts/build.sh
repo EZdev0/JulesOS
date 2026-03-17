@@ -11,6 +11,26 @@ ALPINE_RELEASE="3.21.2"
 ALPINE_TAR="alpine-minirootfs-${ALPINE_RELEASE}-x86_64.tar.gz"
 ALPINE_URL="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/x86_64/${ALPINE_TAR}"
 
+# Termux Detection
+IS_TERMUX=0
+if [[ "$PREFIX" == *"termux"* ]]; then
+    IS_TERMUX=1
+    echo "[!] Termux environment detected. Adapting build process for non-root execution."
+fi
+
+# Dependency Checks
+for cmd in wget tar cpio gzip cmake make; do
+    if ! command -v $cmd >/dev/null 2>&1; then
+        echo "[ERROR] Required command '$cmd' is missing."
+        if [ "$IS_TERMUX" -eq 1 ]; then
+            echo "-> Run: pkg install $cmd"
+        else
+            echo "-> Please install it before continuing."
+        fi
+        exit 1
+    fi
+done
+
 echo "================================================"
 echo "      Building Jules OS (Enhanced Version)      "
 echo "================================================"
@@ -23,7 +43,9 @@ mkdir -p "${BUILD_DIR}" "${ISO_DIR}/boot" "${ROOTFS_DIR}"
 # 1. Compile the Jules Shell (C++)
 echo "[+] Compiling Jules Shell (C++ Core)..."
 cd "${BUILD_DIR}"
-if ld --help | grep -q "static"; then
+if [ "$IS_TERMUX" -eq 1 ]; then
+    STATIC_OPT="-DSTATIC_BUILD=OFF"
+elif ld --help 2>&1 | grep -q "static"; then
     STATIC_OPT="-DSTATIC_BUILD=ON"
 else
     STATIC_OPT="-DSTATIC_BUILD=OFF"
@@ -70,16 +92,22 @@ echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/community" >> "${
 echo "[+] Fetching pre-compiled Linux Kernel (Alpine virt-kernel)..."
 mkdir -p "${BUILD_DIR}/kernel_pkg"
 cd "${BUILD_DIR}/kernel_pkg"
-KERNEL_PKG_URL=$(wget -qO- https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main/x86_64/ | grep -o 'linux-virt-[0-9].*\.apk' | head -n 1)
+KERNEL_PKG_URL=$(wget -qO- https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main/x86_64/ | grep -oE 'linux-virt-[0-9][a-zA-Z0-9.-]*\.apk' | head -n 1)
 wget -q "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main/x86_64/${KERNEL_PKG_URL}"
-tar -zxf "${KERNEL_PKG_URL}"
-cp boot/vmlinuz-virt "${ISO_DIR}/boot/bzImage"
+tar -zxf "${KERNEL_PKG_URL}" || true
+if [ -f boot/vmlinuz-virt ]; then
+    cp boot/vmlinuz-virt "${ISO_DIR}/boot/bzImage"
+    echo "[OK] Kernel (vmlinuz-virt) successfully extracted."
+else
+    echo "[ERROR] Kernel file not found in the downloaded package!"
+    exit 1
+fi
 cd "${JULES_DIR}"
 
 # 6. Pack Initramfs
 echo "[+] Packing Jules OS RootFS (Initramfs)..."
 cd "${ROOTFS_DIR}"
-find . | cpio -o -H newc | gzip -9 > "${ISO_DIR}/boot/initrd.img"
+find . -print0 | cpio --null -o -H newc | gzip -9 > "${ISO_DIR}/boot/initrd.img"
 cd "${JULES_DIR}"
 
 # 7. Configure Bootloader
@@ -95,7 +123,28 @@ EOF_SYSLINUX
 
 # 8. Create ISO
 echo "[+] Creating Bootable ISO Image (JulesOS.iso)..."
-if command -v xorriso >/dev/null 2>&1; then
+if [ "$IS_TERMUX" -eq 1 ]; then
+    echo "[i] Skipping ISO creation under Termux (not strictly required)."
+    echo "[+] Creating QEMU runner script for Termux (run_qemu.sh)..."
+    cat << 'EOF_RUNNER' > run_qemu.sh
+#!/bin/bash
+if ! command -v qemu-system-x86_64 >/dev/null 2>&1; then
+    echo "[!] qemu-system-x86_64 not found. Install it before continuing."
+    exit 1
+fi
+
+echo "[+] Starting Jules OS in QEMU..."
+qemu-system-x86_64 \
+    -kernel iso/boot/bzImage \
+    -initrd iso/boot/initrd.img \
+    -append "root=/dev/ram0 rw console=ttyS0 quiet loglevel=0" \
+    -nographic \
+    -m 512M
+EOF_RUNNER
+    chmod +x run_qemu.sh
+    echo "[SUCCESS] Build process finished. Run './run_qemu.sh' to start Jules OS."
+else
+    if command -v xorriso >/dev/null 2>&1; then
     SYSLINUX_DIR=""
     for d in /usr/lib/syslinux/modules/bios /usr/share/syslinux /usr/lib/ISOLINUX /usr/lib/syslinux/bios; do
         if [ -f "$d/isolinux.bin" ]; then
@@ -122,6 +171,7 @@ else
     echo "[!] xorriso not found. Skipping ISO creation."
 fi
 
-echo "================================================"
-echo "[SUCCESS] Build process finished."
-echo "================================================"
+    echo "================================================"
+    echo "[SUCCESS] Build process finished."
+    echo "================================================"
+fi
