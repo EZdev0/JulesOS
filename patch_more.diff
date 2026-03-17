@@ -1,0 +1,14 @@
+--- jules-os/src/commands.cpp
++++ jules-os/src/commands.cpp
+@@ -107,11 +107,6 @@
+
+ void execute_external(const std::string& cmd) {
+     if (cmd.rfind("cd ", 0) == 0) {
+-        std::string dir = cmd.substr(3);
+-        dir.erase(0, dir.find_first_not_of(" \t\n\r"));
+-        dir.erase(dir.find_last_not_of(" \t\n\r") + 1);
++        std::string dir = cmd.substr(3);
++        dir.erase(0, dir.find_first_not_of(" \t\n\r"));
++        dir.erase(dir.find_last_not_of(" \t\n\r") + 1);
+         if (dir == "~" || dir == "") {
+             const char* home = getenv("HOME");

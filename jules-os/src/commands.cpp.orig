@@ -142,30 +142,30 @@ void execute_command(const std::string& cmd) {
 
     if (trimmed.empty()) return;
 
-    if (trimmed == "help") {
+    if (cmd == "help") {
         show_help();
-    } else if (trimmed == "status") {
+    } else if (cmd == "status") {
         show_status();
-    } else if (trimmed == "boost") {
+    } else if (cmd == "boost") {
         run_boost();
-    } else if (trimmed == "fetch") {
+    } else if (cmd == "fetch") {
         run_fetch();
-    } else if (trimmed == "python") {
+    } else if (cmd == "python") {
         run_python();
-    } else if (trimmed == "jupdate" || trimmed == "update") {
+    } else if (cmd == "jupdate" || cmd == "update") {
         run_jupdate();
-    } else if (trimmed == "clear") {
+    } else if (cmd == "clear") {
         run_clear();
-    } else if (trimmed == "exit" || trimmed == "poweroff") {
+    } else if (cmd == "exit" || cmd == "poweroff") {
         std::cout << COLOR_RED << "Shutting down Jules OS...\n" << COLOR_RESET;
         run_system("poweroff");
         exit(0);
-    } else if (trimmed == "reboot") {
+    } else if (cmd == "reboot") {
         std::cout << COLOR_YELLOW << "Rebooting Jules OS...\n" << COLOR_RESET;
         run_system("reboot");
         exit(0);
     } else {
-        execute_external(trimmed);
+        execute_external(cmd);
     }
 }
 
