@@ -3,11 +3,11 @@
 # jules_init - The core orchestrator for the indestructible Jules OS.
 
 # Ensure critical filesystems are mounted
-mount -t proc none /proc 2>/dev/null || true
-mount -t sysfs none /sys 2>/dev/null || true
-mount -t devtmpfs none /dev 2>/dev/null || true
-mount -t tmpfs -o size=1024m,mode=1777 tmpfs /tmp 2>/dev/null || true
-mount -t tmpfs -o mode=0755 none /run 2>/dev/null || true
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devtmpfs none /dev
+mount -t tmpfs -o size=1024m,mode=1777 tmpfs /tmp
+mount -t tmpfs -o mode=0755 none /run
 
 # Set hostname to JulesOS
 hostname JulesOS 2>/dev/null || true
