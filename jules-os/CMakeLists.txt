@@ -7,6 +7,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Option to enable/disable static linking
 option(STATIC_BUILD "Build a statically linked binary" ON)
 
+# Termux/Android detection
+if(DEFINED ENV{PREFIX} AND "$ENV{PREFIX}" MATCHES "termux")
+    message(STATUS "Termux environment detected. Forcing dynamic linking (Bionic libc does not support full static linking).")
+    set(STATIC_BUILD OFF CACHE BOOL "Build a statically linked binary" FORCE)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+    message(STATUS "Android environment detected. Forcing dynamic linking.")
+    set(STATIC_BUILD OFF CACHE BOOL "Build a statically linked binary" FORCE)
+endif()
+
 if(STATIC_BUILD)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static")
     message(STATUS "Building statically linked binary")
@@ -22,6 +33,13 @@ add_executable(jules_shell
     src/shell.cpp
     src/commands.cpp
 )
+
+if(DEFINED ENV{PREFIX} AND "$ENV{PREFIX}" MATCHES "termux")
+    # In Termux, we often need to ensure the runtime linker finds libc++_shared
+    # and we don't accidentally try to link against missing static libs like -lc or -lm
+    # Bionic libc provides c and m automatically.
+    target_link_directories(jules_shell PRIVATE $ENV{PREFIX}/lib)
+endif()
 
 # Strip the binary to make it as small as possible
 add_custom_command(TARGET jules_shell POST_BUILD
@@ -55,6 +73,10 @@ if(BUILD_TESTING)
         tests/test_commands.cpp
         src/commands.cpp
     )
+
+    if(DEFINED ENV{PREFIX} AND "$ENV{PREFIX}" MATCHES "termux")
+        target_link_directories(jules_tests PRIVATE $ENV{PREFIX}/lib)
+    endif()
 
     target_compile_options(jules_tests PRIVATE ${TEST_CXX_FLAGS})
     # Remove -fno-exceptions -fno-rtti for tests from CMAKE_CXX_FLAGS locally to the target if needed

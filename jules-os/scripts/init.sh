@@ -3,21 +3,21 @@
 # jules_init - The core orchestrator for the indestructible Jules OS.
 
 # Ensure critical filesystems are mounted
-mount -t proc none /proc
-mount -t sysfs none /sys
-mount -t devtmpfs none /dev
-mount -t tmpfs -o size=1024m tmpfs /tmp
-mount -t tmpfs -o mode=0755 none /run
+mount -t proc none /proc 2>/dev/null || true
+mount -t sysfs none /sys 2>/dev/null || true
+mount -t devtmpfs none /dev 2>/dev/null || true
+mount -t tmpfs -o size=1024m,mode=1777 tmpfs /tmp 2>/dev/null || true
+mount -t tmpfs -o mode=0755 none /run 2>/dev/null || true
 
 # Set hostname to JulesOS
-hostname JulesOS
+hostname JulesOS 2>/dev/null || true
 
 echo "[ OK ] Mounting Core Filesystems..."
 echo "[ OK ] Jules OS Initializing Unbreakable Layer..."
 
 # Ensure network is up (DHCP via eth0 for QEMU)
 echo "[ OK ] Bringing up network interface (eth0)..."
-ip link set lo up
+ip link set lo up 2>/dev/null || true
 ip link set eth0 up 2>/dev/null
 udhcpc -i eth0 -n -q 2>/dev/null
 
@@ -71,9 +71,9 @@ cd /home/jules
 
 # Apply performance tuning
 echo "[ OK ] Applying Jules OS Tuning..."
-echo 3 > /proc/sys/vm/drop_caches
-echo 1 > /proc/sys/vm/overcommit_memory
-echo 10 > /proc/sys/vm/swappiness
+echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+echo 1 > /proc/sys/vm/overcommit_memory 2>/dev/null || true
+echo 10 > /proc/sys/vm/swappiness 2>/dev/null || true
 
 # Start the Jules Shell directly
 echo "[ OK ] Handing over control to Jules Shell (C++ Core)..."
