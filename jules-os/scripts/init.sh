@@ -70,10 +70,14 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 cd /home/jules
 
 # Apply performance tuning
-echo "[ OK ] Applying Jules OS Tuning..."
+echo "[ OK ] Applying Jules OS Tuning (CachyOS Inspired)..."
 echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
 echo 1 > /proc/sys/vm/overcommit_memory 2>/dev/null || true
 echo 10 > /proc/sys/vm/swappiness 2>/dev/null || true
+# CachyOS kernel optimizations
+echo bbr > /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null || true
+echo 1 > /proc/sys/kernel/sched_autogroup_enabled 2>/dev/null || true
+echo 2147483642 > /proc/sys/vm/max_map_count 2>/dev/null || true
 
 # Start the Jules Shell directly
 echo "[ OK ] Handing over control to Jules Shell (C++ Core)..."

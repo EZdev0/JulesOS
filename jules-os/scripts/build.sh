@@ -118,7 +118,7 @@ DEFAULT jules
 LABEL jules
   KERNEL /boot/bzImage
   INITRD /boot/initrd.img
-  APPEND root=/dev/ram0 rw console=ttyS0 quiet loglevel=0
+  APPEND root=/dev/ram0 rw console=ttyS0 quiet loglevel=0 mitigations=off nowatchdog no_timer_check
 EOF_SYSLINUX
 
 # 8. Create ISO
@@ -137,7 +137,7 @@ echo "[+] Starting Jules OS in QEMU..."
 qemu-system-x86_64 \
     -kernel iso/boot/bzImage \
     -initrd iso/boot/initrd.img \
-    -append "root=/dev/ram0 rw console=ttyS0 quiet loglevel=0" \
+    -append "root=/dev/ram0 rw console=ttyS0 quiet loglevel=0 mitigations=off nowatchdog no_timer_check" \
     -nographic \
     -m 512M
 EOF_RUNNER
