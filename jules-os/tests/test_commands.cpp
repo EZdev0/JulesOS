@@ -38,6 +38,39 @@ TEST(CommandsTest, EmptyCommandProducesNoOutput) {
     EXPECT_EQ(capture.getCerr(), "");
 }
 
+// Test for show_help output
+TEST(CommandsTest, ShowHelpOutput) {
+    OutputCapture capture;
+
+    show_help();
+
+    std::string output = capture.getCout();
+    EXPECT_NE(output.find("=== Jules OS Core Commands ==="), std::string::npos);
+    EXPECT_NE(output.find("help"), std::string::npos);
+    EXPECT_NE(output.find("status"), std::string::npos);
+    EXPECT_NE(output.find("boost"), std::string::npos);
+    EXPECT_NE(output.find("fetch"), std::string::npos);
+    EXPECT_NE(output.find("python"), std::string::npos);
+    EXPECT_NE(output.find("jupdate"), std::string::npos);
+    EXPECT_NE(output.find("clear"), std::string::npos);
+    EXPECT_NE(output.find("reboot"), std::string::npos);
+    EXPECT_NE(output.find("poweroff"), std::string::npos);
+}
+
+// Test that "help" command triggers show_help
+TEST(CommandsTest, HelpCommandTriggersShowHelp) {
+    std::string help_output;
+    {
+        OutputCapture capture;
+        show_help();
+        help_output = capture.getCout();
+    }
+
+    OutputCapture capture;
+    execute_command("help");
+    EXPECT_EQ(capture.getCout(), help_output);
+}
+
 // Test for command containing only whitespace characters
 TEST(CommandsTest, WhitespaceCommandProducesNoOutput) {
     OutputCapture capture;
