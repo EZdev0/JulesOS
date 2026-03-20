@@ -2,6 +2,8 @@
 #include "../src/commands.h"
 #include <sstream>
 #include <iostream>
+#include <fstream>
+#include <cstdio>
 
 using namespace JulesOS;
 
@@ -36,6 +38,46 @@ TEST(CommandsTest, EmptyCommandProducesNoOutput) {
     // Check results: output should be completely empty
     EXPECT_EQ(capture.getCout(), "");
     EXPECT_EQ(capture.getCerr(), "");
+}
+
+// Test for write_sysfs (secure file writing)
+TEST(CommandsTest, WriteSysfsWritesCorrectContent) {
+    const std::string test_file = "test_sysfs_mock.txt";
+    const std::string test_value = "performance";
+
+    // Call function
+    write_sysfs(test_file, test_value);
+
+    // Verify content (including newline)
+    std::ifstream ifs(test_file);
+    std::string content((std::istreambuf_iterator<char>(ifs)),
+                         std::istreambuf_iterator<char>());
+    ifs.close();
+
+    EXPECT_EQ(content, test_value + "\n");
+
+    // Cleanup
+    std::remove(test_file.c_str());
+}
+
+// Test for write_sysfs with potential injection characters
+TEST(CommandsTest, WriteSysfsPreventsInjection) {
+    const std::string test_file = "test_injection.txt";
+    const std::string injection_value = "value; echo 'injected'";
+
+    // Call function
+    write_sysfs(test_file, injection_value);
+
+    // Verify content - should contain exactly the injection_value string plus newline
+    std::ifstream ifs(test_file);
+    std::string content((std::istreambuf_iterator<char>(ifs)),
+                         std::istreambuf_iterator<char>());
+    ifs.close();
+
+    EXPECT_EQ(content, injection_value + "\n");
+
+    // Cleanup
+    std::remove(test_file.c_str());
 }
 
 // Test for command containing only whitespace characters

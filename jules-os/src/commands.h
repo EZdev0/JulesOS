@@ -14,6 +14,7 @@ void run_jupdate();
 void run_fetch();
 void run_clear();
 void run_system(const char* command);
+void write_sysfs(const std::string& path, const std::string& value);
 
 } // namespace JulesOS
 
