@@ -86,4 +86,10 @@ if(BUILD_TESTING)
 
     include(GoogleTest)
     gtest_discover_tests(jules_tests)
+
+    # Add the sync benchmark
+    add_executable(benchmark_sync
+        tests/benchmarks/benchmark_sync.cpp
+    )
+    target_compile_options(benchmark_sync PRIVATE ${TEST_CXX_FLAGS})
 endif()
