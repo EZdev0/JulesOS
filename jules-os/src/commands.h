@@ -5,6 +5,7 @@
 
 namespace JulesOS {
 
+std::string trim(const std::string& s);
 void execute_command(const std::string& cmd);
 void show_help();
 void show_status();
