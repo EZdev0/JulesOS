@@ -13,7 +13,6 @@ void run_python();
 void run_jupdate();
 void run_fetch();
 void run_clear();
-void run_system(const char* command);
 
 } // namespace JulesOS
 
