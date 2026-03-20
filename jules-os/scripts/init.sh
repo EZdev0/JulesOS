@@ -55,6 +55,11 @@ else
 fi
 
 # Create some basic structure in /home
+if ! id "jules" >/dev/null 2>&1; then
+    echo "[ INFO ] Creating user 'jules'..."
+    adduser -D jules 2>/dev/null || true
+fi
+
 mkdir -p /home/jules
 if [ ! -f /home/jules/.profile ]; then
     echo "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" > /home/jules/.profile
@@ -64,6 +69,11 @@ if [ ! -f /home/jules/.profile ]; then
     echo "alias grep='grep --color=auto'" >> /home/jules/.profile
     echo "PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '" >> /home/jules/.profile
 fi
+
+# Ensure correct ownership and secure permissions
+chown -R jules:jules /home/jules 2>/dev/null || true
+chmod 700 /home/jules
+[ -f /home/jules/.profile ] && chmod 600 /home/jules/.profile
 
 export HOME=/home/jules
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
