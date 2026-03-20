@@ -2,6 +2,7 @@
 #include <vector>
 #include "commands.h"
 #include <iostream>
+#include <fstream>
 #include <cstdlib>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -75,7 +76,11 @@ void run_fetch() {
 }
 
 void write_sysfs(const std::string& path, const std::string& value) {
-    execute_external("sh -c 'echo " + value + " > " + path + " 2>/dev/null || true'");
+    std::ofstream fs(path);
+    if (fs.is_open()) {
+        fs << value << "\n";
+        fs.close();
+    }
 }
 
 void run_boost() {

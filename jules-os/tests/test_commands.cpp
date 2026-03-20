@@ -2,6 +2,8 @@
 #include "../src/commands.h"
 #include <sstream>
 #include <iostream>
+#include <fstream>
+#include <cstdio>
 
 using namespace JulesOS;
 
