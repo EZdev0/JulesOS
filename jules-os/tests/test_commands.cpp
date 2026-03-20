@@ -38,6 +38,17 @@ TEST(CommandsTest, EmptyCommandProducesNoOutput) {
     EXPECT_EQ(capture.getCerr(), "");
 }
 
+// Test for trim utility
+TEST(CommandsTest, TrimUtility) {
+    EXPECT_EQ(trim(""), "");
+    EXPECT_EQ(trim("  "), "");
+    EXPECT_EQ(trim(" \t\n\r "), "");
+    EXPECT_EQ(trim("hello"), "hello");
+    EXPECT_EQ(trim("  hello  "), "hello");
+    EXPECT_EQ(trim("\t\nhello\r "), "hello");
+    EXPECT_EQ(trim("  hello world  "), "hello world");
+}
+
 // Test for command containing only whitespace characters
 TEST(CommandsTest, WhitespaceCommandProducesNoOutput) {
     OutputCapture capture;
