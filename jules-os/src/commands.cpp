@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/utsname.h>
 
 namespace JulesOS {
 
@@ -48,7 +49,12 @@ void show_status() {
     std::cout << COLOR_GREEN << "\nDisk Usage (Immutable Core & Vault):" << COLOR_RESET << "\n";
     execute_external("sh -c 'df -h / /home 2>/dev/null || df -h /'");
     std::cout << COLOR_GREEN << "\nKernel Version:" << COLOR_RESET << "\n";
-    execute_external("uname -r");
+    struct utsname buffer;
+    if (uname(&buffer) == 0) {
+        std::cout << buffer.release << "\n";
+    } else {
+        std::cout << "unknown\n";
+    }
     std::cout << std::endl;
 }
 
@@ -61,7 +67,13 @@ void run_fetch() {
 \____/\__,_/_/\___/____/   \____//____/
 )" << COLOR_RESET;
     std::cout << COLOR_YELLOW << "OS: " << COLOR_RESET << "Jules OS 1.0.0 (Immutable Core)\n";
-    std::cout << COLOR_YELLOW << "Kernel: " << COLOR_RESET; fflush(stdout); execute_external("uname -r");
+    std::cout << COLOR_YELLOW << "Kernel: " << COLOR_RESET;
+    struct utsname buffer;
+    if (uname(&buffer) == 0) {
+        std::cout << buffer.release << "\n";
+    } else {
+        std::cout << "unknown\n";
+    }
     std::cout << COLOR_YELLOW << "Shell: " << COLOR_RESET << "Jules Shell (C++)\n";
     std::cout << COLOR_YELLOW << "Uptime: " << COLOR_RESET; fflush(stdout); execute_external("uptime -p");
     std::cout << COLOR_YELLOW << "Memory: " << COLOR_RESET; fflush(stdout); execute_external("sh -c 'free -m | awk \"NR==2{printf \\\"%s/%sMB (%.2f%%)\\\\n\\\", \\$3,\\$2,\\$3*100/\\$2 }\"'");
