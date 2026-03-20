@@ -83,10 +83,7 @@ int main(int argc, char* argv[]) {
             break;
         }
 
-        size_t first = input.find_first_not_of(" \t\n\r");
-        if (std::string::npos == first) continue;
-        size_t last = input.find_last_not_of(" \t\n\r");
-        input = input.substr(first, (last - first + 1));
+        input = trim(input);
 
         if (input.empty()) continue;
         if (input == "exit") break;
