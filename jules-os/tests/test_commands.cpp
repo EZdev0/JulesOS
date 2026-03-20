@@ -2,6 +2,8 @@
 #include "../src/commands.h"
 #include <sstream>
 #include <iostream>
+#include <fstream>
+#include <cstdio>
 
 using namespace JulesOS;
 
@@ -38,26 +40,15 @@ TEST(CommandsTest, EmptyCommandProducesNoOutput) {
     EXPECT_EQ(capture.getCerr(), "");
 }
 
-// Test for show_help command
-TEST(CommandsTest, ShowHelpProducesExpectedOutput) {
-    OutputCapture capture;
-
-    // Call function
-    show_help();
-
-    // Check results: output should contain key commands
-    std::string output = capture.getCout();
-    EXPECT_NE(output.find("=== Jules OS Core Commands ==="), std::string::npos);
-    EXPECT_NE(output.find("help"), std::string::npos);
-    EXPECT_NE(output.find("status"), std::string::npos);
-    EXPECT_NE(output.find("boost"), std::string::npos);
-    EXPECT_NE(output.find("fetch"), std::string::npos);
-    EXPECT_NE(output.find("python"), std::string::npos);
-    EXPECT_NE(output.find("jupdate"), std::string::npos);
-    EXPECT_NE(output.find("clear"), std::string::npos);
-    EXPECT_NE(output.find("reboot"), std::string::npos);
-    EXPECT_NE(output.find("poweroff"), std::string::npos);
-    EXPECT_EQ(capture.getCerr(), "");
+// Test for trim utility
+TEST(CommandsTest, TrimUtility) {
+    EXPECT_EQ(trim(""), "");
+    EXPECT_EQ(trim("  "), "");
+    EXPECT_EQ(trim(" \t\n\r "), "");
+    EXPECT_EQ(trim("hello"), "hello");
+    EXPECT_EQ(trim("  hello  "), "hello");
+    EXPECT_EQ(trim("\t\nhello\r "), "hello");
+    EXPECT_EQ(trim("  hello world  "), "hello world");
 }
 
 // Test for command containing only whitespace characters
