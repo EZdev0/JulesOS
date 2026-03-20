@@ -2,9 +2,11 @@
 #include <vector>
 #include "commands.h"
 #include <iostream>
+#include <fstream>
 #include <cstdlib>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/utsname.h>
 
 namespace JulesOS {
 
@@ -17,7 +19,13 @@ const std::string COLOR_MAGENTA = "\033[35m";
 const std::string COLOR_CYAN = "\033[36m";
 const std::string BOLD = "\033[1m";
 
-
+std::string trim(const std::string& s) {
+    std::string trimmed = s;
+    size_t first = trimmed.find_first_not_of(" \t\n\r");
+    if (std::string::npos == first) return "";
+    size_t last = trimmed.find_last_not_of(" \t\n\r");
+    return trimmed.substr(first, (last - first + 1));
+}
 
 void execute_external(const std::string& cmd); // forward declaration
 
@@ -48,7 +56,12 @@ void show_status() {
     std::cout << COLOR_GREEN << "\nDisk Usage (Immutable Core & Vault):" << COLOR_RESET << "\n";
     execute_external("sh -c 'df -h / /home 2>/dev/null || df -h /'");
     std::cout << COLOR_GREEN << "\nKernel Version:" << COLOR_RESET << "\n";
-    execute_external("uname -r");
+    struct utsname buffer;
+    if (uname(&buffer) == 0) {
+        std::cout << buffer.release << "\n";
+    } else {
+        std::cout << "unknown\n";
+    }
     std::cout << std::endl;
 }
 
@@ -61,7 +74,13 @@ void run_fetch() {
 \____/\__,_/_/\___/____/   \____//____/
 )" << COLOR_RESET;
     std::cout << COLOR_YELLOW << "OS: " << COLOR_RESET << "Jules OS 1.0.0 (Immutable Core)\n";
-    std::cout << COLOR_YELLOW << "Kernel: " << COLOR_RESET; fflush(stdout); execute_external("uname -r");
+    std::cout << COLOR_YELLOW << "Kernel: " << COLOR_RESET;
+    struct utsname buffer;
+    if (uname(&buffer) == 0) {
+        std::cout << buffer.release << "\n";
+    } else {
+        std::cout << "unknown\n";
+    }
     std::cout << COLOR_YELLOW << "Shell: " << COLOR_RESET << "Jules Shell (C++)\n";
     std::cout << COLOR_YELLOW << "Uptime: " << COLOR_RESET; fflush(stdout); execute_external("uptime -p");
     std::cout << COLOR_YELLOW << "Memory: " << COLOR_RESET; fflush(stdout); execute_external("sh -c 'free -m | awk \"NR==2{printf \\\"%s/%sMB (%.2f%%)\\\\n\\\", \\$3,\\$2,\\$3*100/\\$2 }\"'");
@@ -69,14 +88,18 @@ void run_fetch() {
 }
 
 void write_sysfs(const std::string& path, const std::string& value) {
-    execute_external("sh -c 'echo " + value + " > " + path + " 2>/dev/null || true'");
+    std::ofstream fs(path);
+    if (fs.is_open()) {
+        fs << value << "\n";
+        fs.close();
+    }
 }
 
 void run_boost() {
     std::cout << COLOR_MAGENTA << BOLD << "\n[+] Initiating Jules Boost Sequence (ULTRA)...\n" << COLOR_RESET;
 
     std::cout << COLOR_YELLOW << "-> Flushing PageCache, dentries, and inodes..." << COLOR_RESET << "\n";
-    execute_external("sync");
+    sync();
     write_sysfs("/proc/sys/vm/drop_caches", "3");
 
     std::cout << COLOR_YELLOW << "-> Optimizing Virtual Memory (Swappiness & Overcommit)..." << COLOR_RESET << "\n";
@@ -122,9 +145,7 @@ void run_clear() {
 
 void execute_external(const std::string& cmd) {
     if (cmd.rfind("cd ", 0) == 0) {
-        std::string dir = cmd.substr(3);
-        dir.erase(0, dir.find_first_not_of(" \t\n\r"));
-        dir.erase(dir.find_last_not_of(" \t\n\r") + 1);
+        std::string dir = trim(cmd.substr(3));
         if (dir == "~" || dir == "") {
             const char* home = getenv("HOME");
             if (home) dir = home;
@@ -190,9 +211,7 @@ void execute_external(const std::string& cmd) {
 }
 
 void execute_command(const std::string& cmd) {
-    std::string trimmed = cmd;
-    trimmed.erase(0, trimmed.find_first_not_of(" \t\n\r"));
-    trimmed.erase(trimmed.find_last_not_of(" \t\n\r") + 1);
+    std::string trimmed = trim(cmd);
 
     if (trimmed.empty()) return;
 
