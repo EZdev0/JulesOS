@@ -76,7 +76,7 @@ void run_boost() {
     std::cout << COLOR_MAGENTA << BOLD << "\n[+] Initiating Jules Boost Sequence (ULTRA)...\n" << COLOR_RESET;
 
     std::cout << COLOR_YELLOW << "-> Flushing PageCache, dentries, and inodes..." << COLOR_RESET << "\n";
-    execute_external("sync");
+    sync();
     write_sysfs("/proc/sys/vm/drop_caches", "3");
 
     std::cout << COLOR_YELLOW << "-> Optimizing Virtual Memory (Swappiness & Overcommit)..." << COLOR_RESET << "\n";
