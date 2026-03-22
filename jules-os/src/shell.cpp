@@ -54,7 +54,14 @@ int main(int argc, char* argv[]) {
 
     // Handle other arguments as a single command
     if (argc > 1) {
-        std::string cmd = "";
+        size_t total_length = 0;
+        for (int i = 1; i < argc; ++i) {
+            total_length += std::strlen(argv[i]);
+        }
+        total_length += (argc - 2); // Spaces between arguments
+
+        std::string cmd;
+        cmd.reserve(total_length);
         for (int i = 1; i < argc; ++i) {
             cmd += argv[i];
             if (i < argc - 1) cmd += " ";
