@@ -40,6 +40,17 @@ TEST(CommandsTest, EmptyCommandProducesNoOutput) {
     EXPECT_EQ(capture.getCerr(), "");
 }
 
+// Test for run_clear
+TEST(CommandsTest, RunClearOutputsEscapeSequence) {
+    OutputCapture capture;
+
+    // Call function
+    run_clear();
+
+    // Check results: output should be the clear screen escape sequence
+    EXPECT_EQ(capture.getCout(), "\033[2J\033[1;1H");
+}
+
 // Test for trim utility
 TEST(CommandsTest, TrimUtility) {
     EXPECT_EQ(trim(""), "");
