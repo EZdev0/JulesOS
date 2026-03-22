@@ -3,7 +3,6 @@
 #include <string>
 #include <unistd.h>
 #include <cstdlib>
-#include <vector>
 #include <sys/utsname.h>
 
 using namespace JulesOS;
