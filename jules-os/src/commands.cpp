@@ -7,6 +7,9 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
+#include <sys/sysinfo.h>
+#include <iomanip>
+#include <map>
 
 namespace JulesOS {
 
@@ -25,6 +28,43 @@ std::string trim(const std::string& s) {
     if (std::string::npos == first) return "";
     size_t last = trimmed.find_last_not_of(" \t\n\r");
     return trimmed.substr(first, (last - first + 1));
+}
+
+std::string format_bytes(unsigned long bytes) {
+    const char* units[] = {"B", "KiB", "MiB", "GiB", "TiB"};
+    double size = static_cast<double>(bytes);
+    int i = 0;
+    while (size >= 1024 && i < 4) {
+        size /= 1024;
+        i++;
+    }
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(1) << size << units[i];
+    return ss.str();
+}
+
+std::map<std::string, unsigned long> get_mem_info() {
+    std::map<std::string, unsigned long> mem_data;
+    std::ifstream meminfo("/proc/meminfo");
+    if (!meminfo.is_open()) return mem_data;
+
+    std::string line;
+    while (std::getline(meminfo, line)) {
+        size_t colon = line.find(':');
+        if (colon != std::string::npos) {
+            std::string key = line.substr(0, colon);
+            std::string val_str = line.substr(colon + 1);
+            size_t start = val_str.find_first_not_of(" ");
+            size_t end = val_str.find(" kB");
+            if (start != std::string::npos && end != std::string::npos) {
+                try {
+                    unsigned long value = std::stoul(val_str.substr(start, end - start));
+                    mem_data[key] = value * 1024; // convert kB to bytes
+                } catch (...) {}
+            }
+        }
+    }
+    return mem_data;
 }
 
 void execute_external(const std::string& cmd); // forward declaration
@@ -52,17 +92,33 @@ void show_help() {
 void show_status() {
     std::cout << COLOR_BLUE << BOLD << "\n--- System Status ---\n" << COLOR_RESET;
     std::cout << COLOR_GREEN << "Memory Usage:" << COLOR_RESET << "\n";
-    execute_external("free -h");
+    std::map<std::string, unsigned long> mem_info = get_mem_info();
+    if (!mem_info.empty()) {
+        unsigned long total = mem_info["MemTotal"];
+        unsigned long free = mem_info["MemFree"];
+        unsigned long buffers = mem_info["Buffers"];
+        unsigned long cached = mem_info["Cached"];
+        unsigned long slab = mem_info["Slab"];
+        unsigned long shared = mem_info["Shmem"];
+        unsigned long buff_cache = buffers + cached + slab;
+        unsigned long used = total - free - buff_cache;
+        unsigned long available = mem_info["MemAvailable"];
+        if (available == 0) available = free + buff_cache; // Fallback
+
+        std::cout << "               total        used        free      shared  buff/cache   available\n";
+        std::cout << "Mem:    ";
+        std::cout << std::setw(12) << format_bytes(total);
+        std::cout << std::setw(12) << format_bytes(used);
+        std::cout << std::setw(12) << format_bytes(free);
+        std::cout << std::setw(12) << format_bytes(shared);
+        std::cout << std::setw(12) << format_bytes(buff_cache);
+        std::cout << std::setw(12) << format_bytes(available) << "\n";
+    } else {
+        execute_external("free -h");
+    }
     std::cout << COLOR_GREEN << "\nDisk Usage (Immutable Core & Vault):" << COLOR_RESET << "\n";
     execute_external("sh -c 'df -h / /home 2>/dev/null || df -h /'");
-    std::cout << COLOR_GREEN << "\nKernel Version:" << COLOR_RESET << "\n";
-    struct utsname buffer;
-    if (uname(&buffer) == 0) {
-        std::cout << buffer.release << "\n";
-    } else {
-        std::cout << "unknown\n";
-    }
-    std::cout << std::endl;
+    std::cout << COLOR_GREEN << "\nKernel Version:" << COLOR_RESET << "\n" << get_kernel_release() << "\n" << std::endl;
 }
 
 void run_fetch() {
@@ -74,16 +130,36 @@ void run_fetch() {
 \____/\__,_/_/\___/____/   \____//____/
 )" << COLOR_RESET;
     std::cout << COLOR_YELLOW << "OS: " << COLOR_RESET << "Jules OS 1.0.0 (Immutable Core)\n";
-    std::cout << COLOR_YELLOW << "Kernel: " << COLOR_RESET;
-    struct utsname buffer;
-    if (uname(&buffer) == 0) {
-        std::cout << buffer.release << "\n";
-    } else {
-        std::cout << "unknown\n";
-    }
+    std::cout << COLOR_YELLOW << "Kernel: " << COLOR_RESET << get_kernel_release() << "\n";
     std::cout << COLOR_YELLOW << "Shell: " << COLOR_RESET << "Jules Shell (C++)\n";
-    std::cout << COLOR_YELLOW << "Uptime: " << COLOR_RESET; fflush(stdout); execute_external("uptime -p");
-    std::cout << COLOR_YELLOW << "Memory: " << COLOR_RESET; fflush(stdout); execute_external("sh -c 'free -m | awk \"NR==2{printf \\\"%s/%sMB (%.2f%%)\\\\n\\\", \\$3,\\$2,\\$3*100/\\$2 }\"'");
+    struct sysinfo info;
+    std::map<std::string, unsigned long> mem_info = get_mem_info();
+    if (sysinfo(&info) == 0 && !mem_info.empty()) {
+        long uptime = info.uptime;
+        long days = uptime / 86400;
+        long hours = (uptime % 86400) / 3600;
+        long minutes = (uptime % 3600) / 60;
+        std::cout << COLOR_YELLOW << "Uptime: " << COLOR_RESET;
+        if (days > 0) std::cout << days << " days, ";
+        if (hours > 0) std::cout << hours << " hours, ";
+        std::cout << minutes << " minutes\n";
+
+        unsigned long total = mem_info["MemTotal"];
+        unsigned long free = mem_info["MemFree"];
+        unsigned long buffers = mem_info["Buffers"];
+        unsigned long cached = mem_info["Cached"];
+        unsigned long slab = mem_info["Slab"];
+        unsigned long used = total - free - (buffers + cached + slab);
+
+        unsigned long used_mb = used / (1024 * 1024);
+        unsigned long total_mb = total / (1024 * 1024);
+        double pct = (total > 0) ? (static_cast<double>(used) * 100.0 / total) : 0.0;
+        std::cout << COLOR_YELLOW << "Memory: " << COLOR_RESET << used_mb << "/" << total_mb << "MB ("
+                  << std::fixed << std::setprecision(2) << pct << "%)\n";
+    } else {
+        std::cout << COLOR_YELLOW << "Uptime: " << COLOR_RESET; fflush(stdout); execute_external("uptime -p");
+        std::cout << COLOR_YELLOW << "Memory: " << COLOR_RESET; fflush(stdout); execute_external("sh -c 'free -m | awk \"NR==2{printf \\\"%s/%sMB (%.2f%%)\\\\n\\\", \\$3,\\$2,\\$3*100/\\$2 }\"'");
+    }
     std::cout << COLOR_GREEN << "------------------------------------------\n" << COLOR_RESET << std::endl;
 }
 
@@ -141,6 +217,14 @@ void run_jupdate() {
 
 void run_clear() {
     std::cout << "\033[2J\033[1;1H";
+}
+
+std::string get_kernel_release() {
+    struct utsname buffer;
+    if (uname(&buffer) == 0) {
+        return buffer.release;
+    }
+    return "unknown";
 }
 
 void execute_external(const std::string& cmd) {

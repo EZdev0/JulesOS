@@ -1,3 +1,0 @@
-/app/jules-os/build_tests/_deps/googletest-subbuild/CMakeFiles/googletest-populate.dir
-/app/jules-os/build_tests/_deps/googletest-subbuild/CMakeFiles/edit_cache.dir
-/app/jules-os/build_tests/_deps/googletest-subbuild/CMakeFiles/rebuild_cache.dir
