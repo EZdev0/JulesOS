@@ -7,6 +7,12 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
+#include <sys/statvfs.h>
+#include <sys/sysinfo.h>
+#include <glob.h>
+#include <iomanip>
+#include <cmath>
+#include <sstream>
 
 namespace JulesOS {
 
@@ -49,12 +55,63 @@ void show_help() {
 
 
 
+std::string format_size(unsigned long long bytes) {
+    const char* units[] = {"B", "K", "M", "G", "T"};
+    int i = 0;
+    double size = bytes;
+    while (size >= 1024 && i < 4) {
+        size /= 1024;
+        i++;
+    }
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(1) << size << units[i];
+    return ss.str();
+}
+
+void print_disk_usage(const std::string& path) {
+    struct statvfs vfs;
+    if (statvfs(path.c_str(), &vfs) == 0) {
+        unsigned long long total = (unsigned long long)vfs.f_blocks * vfs.f_frsize;
+        unsigned long long free = (unsigned long long)vfs.f_bfree * vfs.f_frsize;
+        unsigned long long available = (unsigned long long)vfs.f_bavail * vfs.f_frsize;
+        unsigned long long used = total - free;
+        double usage_pct = (total > 0) ? (double)used * 100.0 / total : 0;
+
+        std::cout << std::left << std::setw(10) << path
+                  << std::right << std::setw(8) << format_size(total)
+                  << std::setw(8) << format_size(used)
+                  << std::setw(8) << format_size(available)
+                  << std::setw(6) << (int)std::round(usage_pct) << "%\n";
+    }
+}
+
 void show_status() {
     std::cout << COLOR_BLUE << BOLD << "\n--- System Status ---\n" << COLOR_RESET;
     std::cout << COLOR_GREEN << "Memory Usage:" << COLOR_RESET << "\n";
-    execute_external("free -h");
+    struct sysinfo si;
+    if (sysinfo(&si) == 0) {
+        unsigned long long total_ram = (unsigned long long)si.totalram * si.mem_unit;
+        unsigned long long free_ram = (unsigned long long)si.freeram * si.mem_unit;
+        unsigned long long buffer_ram = (unsigned long long)si.bufferram * si.mem_unit;
+        // In modern Linux, 'free' also includes cached, but sysinfo doesn't easily give 'cached' without reading /proc/meminfo
+        // For simplicity and to avoid too much complexity, we'll use a slightly simplified version or read /proc/meminfo
+        std::cout << "Total: " << format_size(total_ram) << "  Used: " << format_size(total_ram - free_ram - buffer_ram)
+                  << "  Free: " << format_size(free_ram) << "  Buffers: " << format_size(buffer_ram) << "\n";
+    } else {
+        execute_external("free -h");
+    }
+
     std::cout << COLOR_GREEN << "\nDisk Usage (Immutable Core & Vault):" << COLOR_RESET << "\n";
-    execute_external("sh -c 'df -h / /home 2>/dev/null || df -h /'");
+    std::cout << std::left << std::setw(10) << "Filesystem"
+              << std::right << std::setw(8) << "Size"
+              << std::setw(8) << "Used"
+              << std::setw(8) << "Avail"
+              << std::setw(8) << "Use%\n";
+    print_disk_usage("/");
+    if (access("/home", F_OK) == 0) {
+        print_disk_usage("/home");
+    }
+
     std::cout << COLOR_GREEN << "\nKernel Version:" << COLOR_RESET << "\n";
     struct utsname buffer;
     if (uname(&buffer) == 0) {
@@ -82,8 +139,34 @@ void run_fetch() {
         std::cout << "unknown\n";
     }
     std::cout << COLOR_YELLOW << "Shell: " << COLOR_RESET << "Jules Shell (C++)\n";
-    std::cout << COLOR_YELLOW << "Uptime: " << COLOR_RESET; fflush(stdout); execute_external("uptime -p");
-    std::cout << COLOR_YELLOW << "Memory: " << COLOR_RESET; fflush(stdout); execute_external("sh -c 'free -m | awk \"NR==2{printf \\\"%s/%sMB (%.2f%%)\\\\n\\\", \\$3,\\$2,\\$3*100/\\$2 }\"'");
+    std::cout << COLOR_YELLOW << "Uptime: " << COLOR_RESET;
+
+    struct sysinfo si;
+    if (sysinfo(&si) == 0) {
+        long uptime = si.uptime;
+        int days = uptime / 86400;
+        int hours = (uptime % 86400) / 3600;
+        int minutes = (uptime % 3600) / 60;
+
+        std::cout << "up ";
+        if (days > 0) std::cout << days << " days, ";
+        if (hours > 0) std::cout << hours << " hours, ";
+        std::cout << minutes << " minutes\n";
+        unsigned long long total_ram = (unsigned long long)si.totalram * si.mem_unit;
+        unsigned long long free_ram = (unsigned long long)si.freeram * si.mem_unit;
+        unsigned long long buffer_ram = (unsigned long long)si.bufferram * si.mem_unit;
+        // Approximation of used memory similar to how 'free' does it (simplified)
+        unsigned long long used_ram = total_ram - free_ram - buffer_ram;
+        double usage_pct = (total_ram > 0) ? (double)used_ram * 100.0 / total_ram : 0;
+
+        std::cout << COLOR_YELLOW << "Memory: " << COLOR_RESET
+                  << (used_ram / 1024 / 1024) << "/" << (total_ram / 1024 / 1024) << "MB ("
+                  << std::fixed << std::setprecision(2) << usage_pct << "%)\n";
+    } else {
+        std::cout << "unknown\n";
+        std::cout << COLOR_YELLOW << "Memory: " << COLOR_RESET << "unknown\n";
+    }
+
     std::cout << COLOR_GREEN << "------------------------------------------\n" << COLOR_RESET << std::endl;
 }
 
@@ -107,7 +190,13 @@ void run_boost() {
     write_sysfs("/proc/sys/vm/overcommit_memory", "1");
 
     std::cout << COLOR_YELLOW << "-> Forcing Performance CPU Governor..." << COLOR_RESET << "\n";
-    execute_external("sh -c 'for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo performance > \"$g\" 2>/dev/null; done || true'");
+    glob_t g;
+    if (glob("/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor", 0, nullptr, &g) == 0) {
+        for (size_t i = 0; i < g.gl_pathc; ++i) {
+            write_sysfs(g.gl_pathv[i], "performance");
+        }
+        globfree(&g);
+    }
 
     std::cout << COLOR_YELLOW << "-> Disabling Transparent Hugepages (Lower Latency)..." << COLOR_RESET << "\n";
     write_sysfs("/sys/kernel/mm/transparent_hugepage/enabled", "never");
