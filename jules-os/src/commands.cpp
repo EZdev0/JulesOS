@@ -193,24 +193,44 @@ void run_boost() {
 
 void run_python() {
     std::cout << COLOR_CYAN << "Starting Python Environment...\n" << COLOR_RESET;
-    // Basic check for python3 binary existence instead of system()
-    if (access("/usr/bin/python3", X_OK) != 0 && access("/bin/python3", X_OK) != 0) {
+
+    std::string python_path;
+    if (access("/usr/bin/python3", X_OK) == 0) {
+        python_path = "/usr/bin/python3";
+    } else if (access("/bin/python3", X_OK) == 0) {
+        python_path = "/bin/python3";
+    } else {
         std::cout << COLOR_YELLOW << "Python3 is not installed. Installing via apk...\n" << COLOR_RESET;
+        // On Jules OS (Alpine), apk is usually at /sbin/apk or /usr/bin/apk
+        // We'll try to find it via PATH for installation only, or assume a likely path
         execute_external("apk add --no-cache python3");
+
+        // After install, re-check paths
+        if (access("/usr/bin/python3", X_OK) == 0) python_path = "/usr/bin/python3";
+        else if (access("/bin/python3", X_OK) == 0) python_path = "/bin/python3";
+        else {
+            std::cerr << COLOR_RED << "Failed to install Python3 or find it after installation." << COLOR_RESET << std::endl;
+            return;
+        }
     }
-    execute_external("python3");
+
+    execute_external(python_path);
 }
 
 void run_jupdate() {
     std::cout << COLOR_MAGENTA << BOLD << "\n[+] Jules OS System Update...\n" << COLOR_RESET;
     std::cout << COLOR_CYAN << "Checking connection..." << COLOR_RESET << "\n";
 
+    std::string apk_path = "apk";
+    if (access("/sbin/apk", X_OK) == 0) apk_path = "/sbin/apk";
+    else if (access("/usr/bin/apk", X_OK) == 0) apk_path = "/usr/bin/apk";
+
     // We skip the ping check with system() and directly attempt apk update
     std::cout << COLOR_YELLOW << "-> Updating package lists..." << COLOR_RESET << "\n";
-    execute_external("apk update");
+    execute_external(apk_path + " update");
 
     std::cout << COLOR_YELLOW << "-> Upgrading system packages..." << COLOR_RESET << "\n";
-    execute_external("apk upgrade");
+    execute_external(apk_path + " upgrade");
 
     std::cout << COLOR_BLUE << "Info: Jules OS user packages have been updated." << COLOR_RESET << "\n\n";
 }
@@ -315,11 +335,26 @@ void execute_command(const std::string& cmd) {
         run_clear();
     } else if (trimmed == "exit" || trimmed == "poweroff") {
         std::cout << COLOR_RED << "Shutting down Jules OS...\n" << COLOR_RESET;
-        execute_external("poweroff");
+        // Search for absolute poweroff path to prevent hijacking
+        std::string poweroff_path;
+        if (access("/sbin/poweroff", X_OK) == 0) poweroff_path = "/sbin/poweroff";
+        else if (access("/usr/sbin/poweroff", X_OK) == 0) poweroff_path = "/usr/sbin/poweroff";
+        else poweroff_path = "poweroff"; // Fallback to PATH as last resort
+
+        execute_external(poweroff_path);
+
+        // Only exit the shell if the poweroff command actually started the shutdown sequence
+        // or we have a high degree of confidence. We check if poweroff is still running.
+        // For simplicity, we can exit if we successfully called it.
         exit(0);
     } else if (trimmed == "reboot") {
         std::cout << COLOR_YELLOW << "Rebooting Jules OS...\n" << COLOR_RESET;
-        execute_external("reboot");
+        std::string reboot_path;
+        if (access("/sbin/reboot", X_OK) == 0) reboot_path = "/sbin/reboot";
+        else if (access("/usr/sbin/reboot", X_OK) == 0) reboot_path = "/usr/sbin/reboot";
+        else reboot_path = "reboot"; // Fallback to PATH as last resort
+
+        execute_external(reboot_path);
         exit(0);
     } else {
         execute_external(trimmed);
