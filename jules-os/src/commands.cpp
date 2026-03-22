@@ -89,6 +89,36 @@ void show_help() {
 
 
 
+std::string format_size(unsigned long long bytes) {
+    const char* units[] = {"B", "K", "M", "G", "T"};
+    int i = 0;
+    double size = bytes;
+    while (size >= 1024 && i < 4) {
+        size /= 1024;
+        i++;
+    }
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(1) << size << units[i];
+    return ss.str();
+}
+
+void print_disk_usage(const std::string& path) {
+    struct statvfs vfs;
+    if (statvfs(path.c_str(), &vfs) == 0) {
+        unsigned long long total = (unsigned long long)vfs.f_blocks * vfs.f_frsize;
+        unsigned long long free = (unsigned long long)vfs.f_bfree * vfs.f_frsize;
+        unsigned long long available = (unsigned long long)vfs.f_bavail * vfs.f_frsize;
+        unsigned long long used = total - free;
+        double usage_pct = (total > 0) ? (double)used * 100.0 / total : 0;
+
+        std::cout << std::left << std::setw(10) << path
+                  << std::right << std::setw(8) << format_size(total)
+                  << std::setw(8) << format_size(used)
+                  << std::setw(8) << format_size(available)
+                  << std::setw(6) << (int)std::round(usage_pct) << "%\n";
+    }
+}
+
 void show_status() {
     std::cout << COLOR_BLUE << BOLD << "\n--- System Status ---\n" << COLOR_RESET;
     std::cout << COLOR_GREEN << "Memory Usage:" << COLOR_RESET << "\n";
@@ -183,7 +213,13 @@ void run_boost() {
     write_sysfs("/proc/sys/vm/overcommit_memory", "1");
 
     std::cout << COLOR_YELLOW << "-> Forcing Performance CPU Governor..." << COLOR_RESET << "\n";
-    execute_external("sh -c 'for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo performance > \"$g\" 2>/dev/null; done || true'");
+    glob_t g;
+    if (glob("/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor", 0, nullptr, &g) == 0) {
+        for (size_t i = 0; i < g.gl_pathc; ++i) {
+            write_sysfs(g.gl_pathv[i], "performance");
+        }
+        globfree(&g);
+    }
 
     std::cout << COLOR_YELLOW << "-> Disabling Transparent Hugepages (Lower Latency)..." << COLOR_RESET << "\n";
     write_sysfs("/sys/kernel/mm/transparent_hugepage/enabled", "never");
