@@ -3,7 +3,7 @@
 #include <string>
 #include <unistd.h>
 #include <cstdlib>
-#include <sys/utsname.h>
+#include <vector>
 
 using namespace JulesOS;
 
@@ -26,14 +26,7 @@ void print_banner() {
 
 )" << RESET;
     std::cout << FG_MAGENTA << BOLD << "    The Immutable, Intelligent, High-Performance Kernel Interface" << RESET << "\n";
-    std::cout << FG_YELLOW << "    Type 'help' for built-in commands. Running on: " << FG_GREEN;
-    struct utsname buffer;
-    if (uname(&buffer) == 0) {
-        std::cout << buffer.release;
-    } else {
-        std::cout << "unknown";
-    }
-    std::cout << RESET << "\n";
+    std::cout << FG_YELLOW << "    Type 'help' for built-in commands. Running on: " << FG_GREEN << get_kernel_release() << RESET << "\n";
 }
 
 std::string get_prompt() {
@@ -61,7 +54,14 @@ int main(int argc, char* argv[]) {
 
     // Handle other arguments as a single command
     if (argc > 1) {
-        std::string cmd = "";
+        size_t total_length = 0;
+        for (int i = 1; i < argc; ++i) {
+            total_length += std::strlen(argv[i]);
+        }
+        total_length += (argc - 2); // Spaces between arguments
+
+        std::string cmd;
+        cmd.reserve(total_length);
         for (int i = 1; i < argc; ++i) {
             cmd += argv[i];
             if (i < argc - 1) cmd += " ";
