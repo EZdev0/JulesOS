@@ -40,6 +40,16 @@ TEST(CommandsTest, EmptyCommandProducesNoOutput) {
     EXPECT_EQ(capture.getCerr(), "");
 }
 
+// Test for kernel release retrieval
+TEST(CommandsTest, GetKernelRelease) {
+    std::string release = get_kernel_release();
+    EXPECT_FALSE(release.empty());
+    // Since we don't know the exact version in the test environment,
+    // we just ensure it's not the failure fallback if we expect success,
+    // but even "unknown" is a valid return if uname fails.
+    // In most CI/test environments, uname should succeed.
+}
+
 // Test for trim utility
 TEST(CommandsTest, TrimUtility) {
     EXPECT_EQ(trim(""), "");
