@@ -92,4 +92,10 @@ if(BUILD_TESTING)
         tests/benchmarks/benchmark_sync.cpp
     )
     target_compile_options(benchmark_sync PRIVATE ${TEST_CXX_FLAGS})
+
+    # Add the vector reserve benchmark
+    add_executable(benchmark_vector_reserve
+        tests/benchmarks/benchmark_vector_reserve.cpp
+    )
+    target_compile_options(benchmark_vector_reserve PRIVATE ${TEST_CXX_FLAGS})
 endif()

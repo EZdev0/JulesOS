@@ -334,6 +334,7 @@ void execute_external(const std::string& cmd) {
     if (args.empty()) return;
 
     std::vector<char*> c_args;
+    c_args.reserve(args.size() + 1);
     for (auto& arg : args) c_args.push_back(&arg[0]);
     c_args.push_back(nullptr);
 
