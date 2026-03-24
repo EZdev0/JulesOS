@@ -379,9 +379,6 @@ void execute_command(const std::string& cmd) {
 
         execute_external(poweroff_path);
 
-        // Only exit the shell if the poweroff command actually started the shutdown sequence
-        // or we have a high degree of confidence. We check if poweroff is still running.
-        // For simplicity, we can exit if we successfully called it.
         exit(0);
     } else if (trimmed == "reboot") {
         std::cout << COLOR_YELLOW << "Rebooting Jules OS...\n" << COLOR_RESET;
