@@ -40,6 +40,20 @@ TEST(CommandsTest, EmptyCommandProducesNoOutput) {
     EXPECT_EQ(capture.getCerr(), "");
 }
 
+// Test for run_clear function
+TEST(CommandsTest, RunClearOutputsCorrectSequence) {
+    OutputCapture capture;
+    run_clear();
+    EXPECT_EQ(capture.getCout(), "\033[2J\033[1;1H");
+}
+
+// Test for clear command
+TEST(CommandsTest, ClearCommandCallsRunClear) {
+    OutputCapture capture;
+    execute_command("clear");
+    EXPECT_EQ(capture.getCout(), "\033[2J\033[1;1H");
+}
+
 // Test for kernel release retrieval
 TEST(CommandsTest, GetKernelRelease) {
     std::string release = get_kernel_release();
