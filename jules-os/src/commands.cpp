@@ -15,6 +15,10 @@
 #include <sstream>
 #include <iomanip>
 #include <map>
+#include <sstream>
+#include <cmath>
+#include <glob.h>
+#include <sys/statvfs.h>
 
 namespace JulesOS {
 
