@@ -40,6 +40,18 @@ TEST(CommandsTest, EmptyCommandProducesNoOutput) {
     EXPECT_EQ(capture.getCerr(), "");
 }
 
+// Test for byte formatting utility
+TEST(CommandsTest, FormatBytes) {
+    EXPECT_EQ(format_bytes(0), "0.0B");
+    EXPECT_EQ(format_bytes(1023), "1023.0B");
+    EXPECT_EQ(format_bytes(1024), "1.0KiB");
+    EXPECT_EQ(format_bytes(1536), "1.5KiB");
+    EXPECT_EQ(format_bytes(1048576), "1.0MiB");
+    EXPECT_EQ(format_bytes(1073741824), "1.0GiB");
+    // 1 TiB = 1024^4 = 1099511627776
+    EXPECT_EQ(format_bytes(1099511627776ULL), "1.0TiB");
+}
+
 // Test for run_clear function
 TEST(CommandsTest, RunClearOutputsCorrectSequence) {
     OutputCapture capture;

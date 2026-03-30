@@ -6,6 +6,7 @@
 namespace JulesOS {
 
 std::string trim(const std::string& s);
+std::string format_bytes(unsigned long bytes);
 void execute_command(const std::string& cmd);
 void show_help();
 void show_status();
