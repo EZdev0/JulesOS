@@ -11,8 +11,14 @@
 #include <sys/statvfs.h>
 #include <glob.h>
 #include <cmath>
+#include <cstring>
+#include <sstream>
 #include <iomanip>
 #include <map>
+#include <sstream>
+#include <cmath>
+#include <glob.h>
+#include <sys/statvfs.h>
 
 namespace JulesOS {
 
@@ -150,7 +156,13 @@ void show_status() {
         execute_external("free -h");
     }
     std::cout << COLOR_GREEN << "\nDisk Usage (Immutable Core & Vault):" << COLOR_RESET << "\n";
-    execute_external("sh -c 'df -h / /home 2>/dev/null || df -h /'");
+    std::cout << std::left << std::setw(10) << "Filesystem"
+              << std::right << std::setw(8) << "Size"
+              << std::setw(8) << "Used"
+              << std::setw(8) << "Avail"
+              << std::setw(6) << "Use%\n";
+    print_disk_usage("/");
+    print_disk_usage("/home");
     std::cout << COLOR_GREEN << "\nKernel Version:" << COLOR_RESET << "\n" << get_kernel_release() << "\n" << std::endl;
 }
 
