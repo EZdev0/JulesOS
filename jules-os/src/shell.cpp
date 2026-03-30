@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <cstdlib>
 #include <vector>
+#include <cstring>
 
 using namespace JulesOS;
 

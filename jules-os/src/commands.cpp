@@ -8,6 +8,9 @@
 #include <sys/wait.h>
 #include <sys/utsname.h>
 #include <sys/sysinfo.h>
+#include <sys/statvfs.h>
+#include <glob.h>
+#include <cmath>
 #include <iomanip>
 #include <map>
 
@@ -30,7 +33,7 @@ std::string trim(const std::string& s) {
     return trimmed.substr(first, (last - first + 1));
 }
 
-std::string format_bytes(unsigned long bytes) {
+std::string format_bytes(unsigned long long bytes) {
     const char* units[] = {"B", "KiB", "MiB", "GiB", "TiB"};
     double size = static_cast<double>(bytes);
     int i = 0;
@@ -43,8 +46,8 @@ std::string format_bytes(unsigned long bytes) {
     return ss.str();
 }
 
-std::map<std::string, unsigned long> get_mem_info() {
-    std::map<std::string, unsigned long> mem_data;
+std::map<std::string, unsigned long long> get_mem_info() {
+    std::map<std::string, unsigned long long> mem_data;
     std::ifstream meminfo("/proc/meminfo");
     if (!meminfo.is_open()) return mem_data;
 
@@ -58,8 +61,8 @@ std::map<std::string, unsigned long> get_mem_info() {
             size_t end = val_str.find(" kB");
             if (start != std::string::npos && end != std::string::npos) {
                 try {
-                    unsigned long value = std::stoul(val_str.substr(start, end - start));
-                    mem_data[key] = value * 1024; // convert kB to bytes
+                    unsigned long long value = std::stoull(val_str.substr(start, end - start));
+                    mem_data[key] = value * 1024ULL; // convert kB to bytes
                 } catch (...) {}
             }
         }
@@ -122,17 +125,17 @@ void print_disk_usage(const std::string& path) {
 void show_status() {
     std::cout << COLOR_BLUE << BOLD << "\n--- System Status ---\n" << COLOR_RESET;
     std::cout << COLOR_GREEN << "Memory Usage:" << COLOR_RESET << "\n";
-    std::map<std::string, unsigned long> mem_info = get_mem_info();
+    std::map<std::string, unsigned long long> mem_info = get_mem_info();
     if (!mem_info.empty()) {
-        unsigned long total = mem_info["MemTotal"];
-        unsigned long free = mem_info["MemFree"];
-        unsigned long buffers = mem_info["Buffers"];
-        unsigned long cached = mem_info["Cached"];
-        unsigned long slab = mem_info["Slab"];
-        unsigned long shared = mem_info["Shmem"];
-        unsigned long buff_cache = buffers + cached + slab;
-        unsigned long used = total - free - buff_cache;
-        unsigned long available = mem_info["MemAvailable"];
+        unsigned long long total = mem_info["MemTotal"];
+        unsigned long long free = mem_info["MemFree"];
+        unsigned long long buffers = mem_info["Buffers"];
+        unsigned long long cached = mem_info["Cached"];
+        unsigned long long slab = mem_info["Slab"];
+        unsigned long long shared = mem_info["Shmem"];
+        unsigned long long buff_cache = buffers + cached + slab;
+        unsigned long long used = total - free - buff_cache;
+        unsigned long long available = mem_info["MemAvailable"];
         if (available == 0) available = free + buff_cache; // Fallback
 
         std::cout << "               total        used        free      shared  buff/cache   available\n";
@@ -163,7 +166,7 @@ void run_fetch() {
     std::cout << COLOR_YELLOW << "Kernel: " << COLOR_RESET << get_kernel_release() << "\n";
     std::cout << COLOR_YELLOW << "Shell: " << COLOR_RESET << "Jules Shell (C++)\n";
     struct sysinfo info;
-    std::map<std::string, unsigned long> mem_info = get_mem_info();
+    std::map<std::string, unsigned long long> mem_info = get_mem_info();
     if (sysinfo(&info) == 0 && !mem_info.empty()) {
         long uptime = info.uptime;
         long days = uptime / 86400;
@@ -174,15 +177,15 @@ void run_fetch() {
         if (hours > 0) std::cout << hours << " hours, ";
         std::cout << minutes << " minutes\n";
 
-        unsigned long total = mem_info["MemTotal"];
-        unsigned long free = mem_info["MemFree"];
-        unsigned long buffers = mem_info["Buffers"];
-        unsigned long cached = mem_info["Cached"];
-        unsigned long slab = mem_info["Slab"];
-        unsigned long used = total - free - (buffers + cached + slab);
+        unsigned long long total = mem_info["MemTotal"];
+        unsigned long long free = mem_info["MemFree"];
+        unsigned long long buffers = mem_info["Buffers"];
+        unsigned long long cached = mem_info["Cached"];
+        unsigned long long slab = mem_info["Slab"];
+        unsigned long long used = total - free - (buffers + cached + slab);
 
-        unsigned long used_mb = used / (1024 * 1024);
-        unsigned long total_mb = total / (1024 * 1024);
+        unsigned long long used_mb = used / (1024 * 1024);
+        unsigned long long total_mb = total / (1024 * 1024);
         double pct = (total > 0) ? (static_cast<double>(used) * 100.0 / total) : 0.0;
         std::cout << COLOR_YELLOW << "Memory: " << COLOR_RESET << used_mb << "/" << total_mb << "MB ("
                   << std::fixed << std::setprecision(2) << pct << "%)\n";
