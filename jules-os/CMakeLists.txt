@@ -98,4 +98,10 @@ if(BUILD_TESTING)
         tests/benchmarks/benchmark_vector_reserve.cpp
     )
     target_compile_options(benchmark_vector_reserve PRIVATE ${TEST_CXX_FLAGS})
+
+    # Add the disk usage benchmark
+    add_executable(benchmark_disk_usage
+        tests/benchmarks/benchmark_disk_usage.cpp
+    )
+    target_compile_options(benchmark_disk_usage PRIVATE ${TEST_CXX_FLAGS})
 endif()
