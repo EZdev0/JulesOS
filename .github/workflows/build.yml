@@ -63,18 +63,18 @@ jobs:
           echo "✅ Jules Shell compiled successfully"
           echo ""
           echo "Binary Information:"
-          file ./julius_shell
-          ls -lh ./julius_shell
+          file ./jules_shell
+          ls -lh ./jules_shell
           echo ""
-          ./julius_shell -c "help" | head -5
+          ./jules_shell -c "help" | head -5
 
       - name: 📦 Upload Jules Shell Binary
         id: upload-binary
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: julius-shell-binary
-          path: julius-os/build/julius_shell
+          name: jules-shell-binary
+          path: jules-os/build/julius_shell
           retention-days: 30
 
       - name: 📤 Fallback: Upload Binary to Release
@@ -83,7 +83,7 @@ jobs:
         continue-on-error: true
         with:
           tag_name: build-${{ github.sha }}
-          files: julius-os/build/julius_shell
+          files: jules-os/build/julius_shell
           name: "Jules Shell Build ${{ github.sha }}"
           body: "Binary artifact uploaded as fallback to GitHub Release"
 
@@ -107,16 +107,16 @@ jobs:
       - name: 📥 Download Jules Shell
         uses: actions/download-artifact@v4
         with:
-          name: julius-shell-binary
-          path: ./julius-os/build/
+          name: jules-shell-binary
+          path: ./jules-os/build/
 
       - name: 🧪 Component Tests
-        working-directory: ./julius-os
+        working-directory: ./jules-os
         run: |
           echo "================================================"
           echo "🧪 COMPONENT TESTS"
           echo "================================================"
-          chmod +x build/julius_shell
+          chmod +x build/jules_shell
           
           PASS=0
           FAIL=0
@@ -136,7 +136,7 @@ jobs:
           # Test 2: clear command
           echo ""
           echo "[TEST 2/6] Testing 'clear' command..."
-          if ./build/julius_shell -c "clear" > /dev/null 2>&1; then
+          if ./build/jules_shell -c "clear" > /dev/null 2>&1; then
             echo "✅ PASS: clear command"
             ((PASS++))
           else
@@ -147,7 +147,7 @@ jobs:
           # Test 3: fetch command
           echo ""
           echo "[TEST 3/6] Testing 'fetch' command..."
-          if ./build/julius_shell -c "fetch" > /tmp/fetch.log 2>&1; then
+          if ./build/jules_shell -c "fetch" > /tmp/fetch.log 2>&1; then
             echo "✅ PASS: fetch command"
             ((PASS++))
           else
@@ -158,7 +158,7 @@ jobs:
           # Test 4: Empty command
           echo ""
           echo "[TEST 4/6] Testing empty command handling..."
-          OUTPUT=$(./build/julius_shell -c "" 2>&1)
+          OUTPUT=$(./build/jules_shell -c "" 2>&1)
           if [ -z "$OUTPUT" ]; then
             echo "✅ PASS: Empty command handled correctly"
             ((PASS++))
@@ -170,7 +170,7 @@ jobs:
           # Test 5: Whitespace handling
           echo ""
           echo "[TEST 5/6] Testing whitespace command handling..."
-          OUTPUT=$(./build/julius_shell -c "   " 2>&1)
+          OUTPUT=$(./build/jules_shell -c "   " 2>&1)
           if [ -z "$OUTPUT" ]; then
             echo "✅ PASS: Whitespace command handled correctly"
             ((PASS++))
@@ -182,7 +182,7 @@ jobs:
           # Test 6: Exit code
           echo ""
           echo "[TEST 6/6] Testing exit code..."
-          if ./build/julius_shell -c "help" > /dev/null 2>&1; then
+          if ./build/jules_shell -c "help" > /dev/null 2>&1; then
             echo "✅ PASS: Exit code 0"
             ((PASS++))
           else
@@ -207,7 +207,7 @@ jobs:
           
           echo ""
           echo "[CHECK] build.sh syntax..."
-          if bash -n julius-os/scripts/build.sh; then
+          if bash -n jules-os/scripts/build.sh; then
             echo "✅ build.sh syntax valid"
           else
             echo "❌ build.sh syntax error"
@@ -215,7 +215,7 @@ jobs:
           fi
           
           echo "[CHECK] init.sh syntax..."
-          if sh -n julius-os/scripts/init.sh; then
+          if sh -n jules-os/scripts/init.sh; then
             echo "✅ init.sh syntax valid"
           else
             echo "❌ init.sh syntax error"
@@ -223,7 +223,7 @@ jobs:
           fi
           
           echo "[CHECK] boot.sh syntax..."
-          if bash -n julius-os/scripts/boot.sh; then
+          if bash -n jules-os/scripts/boot.sh; then
             echo "✅ boot.sh syntax valid"
           else
             echo "❌ boot.sh syntax error"
@@ -254,7 +254,7 @@ jobs:
             gcc-aarch64-linux-gnu
 
       - name: 🔍 C++ Static Analysis (cppcheck)
-        working-directory: ./julius-os
+        working-directory: ./jules-os
         run: |
           echo "================================================"
           echo "🔍 C++ STATIC ANALYSIS (cppcheck)"
@@ -272,7 +272,7 @@ jobs:
           echo "📊 Results: $ERRORS errors, $WARNINGS warnings, $STYLE style issues"
 
       - name: 🐛 Security Scan (flawfinder)
-        working-directory: ./julius-os
+        working-directory: ./jules-os
         run: |
           echo "================================================"
           echo "🐛 SECURITY SCAN (flawfinder)"
@@ -290,7 +290,7 @@ jobs:
           echo "🔒 SHELL SCRIPT ANALYSIS (shellcheck)"
           echo "================================================"
           
-          shellcheck -x julius-os/scripts/*.sh || true
+          shellcheck -x jules-os/scripts/*.sh || true
           echo ""
           echo "✅ Shell script analysis complete"
 
@@ -301,8 +301,8 @@ jobs:
         with:
           name: security-reports
           path: |
-            julius-os/cppcheck.log
-            julius-os/flawfinder.log
+            jules-os/cppcheck.log
+            jules-os/flawfinder.log
           retention-days: 7
 
       - name: 📤 Fallback: Upload Security Reports to Release
@@ -312,8 +312,8 @@ jobs:
         with:
           tag_name: security-${{ github.sha }}
           files: |
-            julius-os/cppcheck.log
-            julius-os/flawfinder.log
+            jules-os/cppcheck.log
+            jules-os/flawfinder.log
           name: "Security Reports ${{ github.sha }}"
           body: "Security analysis reports uploaded as fallback to GitHub Release"
 
@@ -339,8 +339,8 @@ jobs:
       - name: 📥 Download Jules Shell
         uses: actions/download-artifact@v4
         with:
-          name: julius-shell-binary
-          path: ./julius-os/build/
+          name: jules-shell-binary
+          path: ./jules-os/build/
 
       - name: 🏗️ Build ISO Image
         working-directory: ./julius-os
@@ -349,11 +349,11 @@ jobs:
           echo "🏗️  BUILDING ISO IMAGE"
           echo "================================================"
           
-          chmod +x build/julius_shell scripts/*.sh
+          chmod +x build/jules_shell scripts/*.sh
           
           echo ""
           echo "Pre-build checks:"
-          ls -lh build/julius_shell
+          ls -lh build/jules_shell
           ls -lh scripts/*.sh
           
           echo ""
@@ -379,7 +379,7 @@ jobs:
           fi
 
       - name: 📊 Verify ISO Structure
-        working-directory: ./julius-os
+        working-directory: ./jules-os
         run: |
           echo "================================================"
           echo "📊 ISO STRUCTURE VERIFICATION"
@@ -419,7 +419,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: julesOS-iso
-          path: julius-os/JulesOS.iso
+          path: jules-os/JulesOS.iso
           retention-days: 30
           if-no-files-found: warn
 
