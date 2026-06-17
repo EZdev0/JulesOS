@@ -74,7 +74,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: jules-shell-binary
-          path: jules-os/build/julius_shell
+          path: jules-os/build/jules_shell
           retention-days: 30
 
       - name: 📤 Fallback: Upload Binary to Release
@@ -83,13 +83,13 @@ jobs:
         continue-on-error: true
         with:
           tag_name: build-${{ github.sha }}
-          files: jules-os/build/julius_shell
+          files: jules-os/build/jules_shell
           name: "Jules Shell Build ${{ github.sha }}"
           body: "Binary artifact uploaded as fallback to GitHub Release"
 
   # ══════════════════════════════════════════════════════
   # TEST JOB: Unit & Component Tests
-  # ══════════════════════════════════���═══════════════════
+  # ══════════════════════════════════════════════════════
   test:
     name: Unit & Component Tests
     needs: build
@@ -124,7 +124,7 @@ jobs:
           # Test 1: help command
           echo ""
           echo "[TEST 1/6] Testing 'help' command..."
-          if ./build/julius_shell -c "help" > /tmp/help.log 2>&1; then
+          if ./build/jules_shell -c "help" > /tmp/help.log 2>&1; then
             echo "✅ PASS: help command"
             ((PASS++))
           else
@@ -343,7 +343,7 @@ jobs:
           path: ./jules-os/build/
 
       - name: 🏗️ Build ISO Image
-        working-directory: ./julius-os
+        working-directory: ./jules-os
         run: |
           echo "================================================"
           echo "🏗️  BUILDING ISO IMAGE"
