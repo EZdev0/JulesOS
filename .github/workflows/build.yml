@@ -1,3 +1,4 @@
+```yaml
 name: Jules OS Build, Test & ISO
 
 on:
@@ -77,7 +78,7 @@ jobs:
           path: jules-os/build/jules_shell
           retention-days: 30
 
-      - name: 📤 Fallback: Upload Binary to Release
+      - name: "📤 Fallback: Upload Binary to Release"
         if: steps.upload-binary.outcome == 'failure'
         uses: softprops/action-gh-release@v2
         continue-on-error: true
@@ -305,7 +306,7 @@ jobs:
             jules-os/flawfinder.log
           retention-days: 7
 
-      - name: 📤 Fallback: Upload Security Reports to Release
+      - name: "📤 Fallback: Upload Security Reports to Release"
         if: steps.upload-security.outcome == 'failure'
         uses: softprops/action-gh-release@v2
         continue-on-error: true
@@ -423,7 +424,7 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-      - name: 📤 Fallback: Upload ISO to Release
+      - name: "📤 Fallback: Upload ISO to Release"
         if: steps.upload-iso.outcome == 'failure'
         uses: softprops/action-gh-release@v2
         continue-on-error: true
@@ -498,3 +499,5 @@ jobs:
             echo "════════════════════════════════════════════════════"
           fi
           echo ""
+
+```
