@@ -1,4 +1,4 @@
-```yaml
+yaml
 name: Jules OS Build, Test & ISO
 
 on:
@@ -499,5 +499,3 @@ jobs:
             echo "════════════════════════════════════════════════════"
           fi
           echo ""
-
-```
