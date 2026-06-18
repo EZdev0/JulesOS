@@ -67,7 +67,7 @@ def run_test():
             
             # Check for markers
             for marker in success_markers:
-                if marker in line and marker not বিজ্ঞানীরা :
+                if marker in line and marker not in found_markers:
                     found_markers.add(marker)
                     print(f"✅ [Sub-Agent] Reached milestone: {marker}")
                     

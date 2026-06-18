@@ -8,20 +8,18 @@ use std::fs;
 use std::io::{self, BufRead};
 use std::path::Path;
 
-/// Get the kernel release string via uname(2).
+/// Get the kernel release string via procfs.
 pub fn get_kernel_release() -> String {
-    match nix::sys::utsname::uname() {
-        Ok(info) => info.release().to_string_lossy().into_owned(),
-        Err(_) => "unknown".to_string(),
-    }
+    fs::read_to_string("/proc/sys/kernel/osrelease")
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|_| "unknown".to_string())
 }
 
-/// Get the system hostname.
+/// Get the system hostname via procfs.
 pub fn get_hostname() -> String {
-    match nix::unistd::gethostname() {
-        Ok(name) => name.to_string_lossy().into_owned(),
-        Err(_) => "JulesOS".to_string(),
-    }
+    fs::read_to_string("/proc/sys/kernel/hostname")
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|_| "JulesOS".to_string())
 }
 
 /// Parse /proc/meminfo into a HashMap of key → value (in bytes).
