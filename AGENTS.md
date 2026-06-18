@@ -20,6 +20,7 @@ JulesOS is a minimal, immutable, high-performance Linux-based operating system. 
 - Shell scripts must pass `shellcheck` analysis
 - Static musl binaries are the default build target
 - Security-critical code must use safe Rust (no `unsafe` without justification)
+- **CRITICAL AGENT RULE:** Whenever an error, bug, or crash occurs, you MUST actively document the failure, the root cause, and the fix in `.agent/rules/LEARNING.md` so the entire development history and problem-solving process remains transparent and traceable.
 
 ## Verification
 ```bash
