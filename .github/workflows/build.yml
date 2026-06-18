@@ -131,11 +131,11 @@ jobs:
           echo "[TEST 1/6] Testing 'help' command..."
           if ./build/jules_shell -c "help" > /tmp/help.log 2>&1; then
             echo "✅ PASS: help command"
-            ((PASS++))
+            PASS=$((PASS+1))
           else
             echo "❌ FAIL: help command"
             cat /tmp/help.log
-            ((FAIL++))
+            FAIL=$((FAIL+1))
           fi
           
           # Test 2: clear command
@@ -143,10 +143,10 @@ jobs:
           echo "[TEST 2/6] Testing 'clear' command..."
           if ./build/jules_shell -c "clear" > /dev/null 2>&1; then
             echo "✅ PASS: clear command"
-            ((PASS++))
+            PASS=$((PASS+1))
           else
             echo "❌ FAIL: clear command"
-            ((FAIL++))
+            FAIL=$((FAIL+1))
           fi
           
           # Test 3: fetch command
@@ -154,10 +154,10 @@ jobs:
           echo "[TEST 3/6] Testing 'fetch' command..."
           if ./build/jules_shell -c "fetch" > /dev/null 2>&1; then
             echo "✅ PASS: fetch command"
-            ((PASS++))
+            PASS=$((PASS+1))
           else
             echo "⚠️  fetch command (non-critical)"
-            ((PASS++))
+            PASS=$((PASS+1))
           fi
           
           # Test 4: Empty command
@@ -166,10 +166,10 @@ jobs:
           OUTPUT=$(./build/jules_shell -c "" > /dev/null 2>&1 || true)
           if [ -z "$OUTPUT" ]; then
             echo "✅ PASS: Empty command handled correctly"
-            ((PASS++))
+            PASS=$((PASS+1))
           else
             echo "⚠️  Empty command produced output (non-critical)"
-            ((PASS++))
+            PASS=$((PASS+1))
           fi
           
           # Test 5: Whitespace handling
@@ -178,10 +178,10 @@ jobs:
           OUTPUT=$(./build/jules_shell -c "   " > /dev/null 2>&1 || true)
           if [ -z "$OUTPUT" ]; then
             echo "✅ PASS: Whitespace command handled correctly"
-            ((PASS++))
+            PASS=$((PASS+1))
           else
             echo "⚠️  Whitespace command produced output (non-critical)"
-            ((PASS++))
+            PASS=$((PASS+1))
           fi
           
           # Test 6: Exit code
@@ -189,10 +189,10 @@ jobs:
           echo "[TEST 6/6] Testing exit code..."
           if ./build/jules_shell -c "help" > /tmp/help.log 2>&1; then
             echo "✅ PASS: Exit code 0"
-            ((PASS++))
+            PASS=$((PASS+1))
           else
             echo "❌ FAIL: Exit code non-zero"
-            ((FAIL++))
+            FAIL=$((FAIL+1))
           fi
           
           echo ""
