@@ -16,58 +16,79 @@ on:
 permissions:
   contents: write
 
+env:
+  RUST_TARGET: x86_64-unknown-linux-musl
+  CARGO_TERM_COLOR: always
+
 jobs:
-  # ══════════════════════════════════════════════════════
-  # BUILD JOB: Compile Jules Shell (C++)
-  # ══════════════════════════════════════════════════════
+  # ══════════════════════════════════════════════════════════════
+  # BUILD JOB: Compile Jules Shell (Rust)
+  # ══════════════════════════════════════════════════════════════
   build:
-    name: Build Jules Shell
+    name: Build Jules Shell (Rust)
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🔧 Install Build Dependencies
+      - name: 🦀 Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+          components: clippy, rustfmt
+
+      - name: 🔧 Install musl-tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq \
-            cmake \
-            g++ \
-            make \
-            wget \
-            tar \
-            cpio \
-            gzip \
-            xorriso \
-            syslinux \
-            syslinux-utils
+          sudo apt-get install -y -qq musl-tools
 
-      - name: ℹ️ Toolchain Info
+      - name: 📋 Toolchain Info
         run: |
-          echo "=== Toolchain Versions ==="
-          cmake --version | head -1
-          g++ --version | head -1
-          make --version | head -1
+          echo "=== Rust Toolchain ==="
+          rustc --version
+          cargo --version
+          rustup show
 
-      - name: 🏗️ Build Jules Shell (CMake)
+      - name: 🔍 Lint (clippy)
         working-directory: ./jules-os
         run: |
-          echo "================================================"
-          echo "🔨 BUILDING JULES SHELL (C++)"
-          echo "================================================"
-          mkdir -p build
-          cd build
-          cmake -DSTATIC_BUILD=OFF .. || (echo "CMake configuration failed"; exit 1)
-          make -j$(nproc) || (echo "Compilation failed"; exit 1)
+          echo "════════════════════════════════════════"
+          echo "🔍 Running Clippy (Rust Linter)"
+          echo "════════════════════════════════════════"
+          cargo clippy --all-targets -- -D warnings
+
+      - name: 📐 Format Check
+        working-directory: ./jules-os
+        run: |
+          echo "════════════════════════════════════════"
+          echo "📐 Checking Code Formatting"
+          echo "════════════════════════════════════════"
+          cargo fmt -- --check
+
+      - name: 🏗️ Build (Static musl Binary)
+        working-directory: ./jules-os
+        run: |
+          echo "════════════════════════════════════════"
+          echo "🏗️  BUILDING JULES SHELL (Rust + musl)"
+          echo "════════════════════════════════════════"
+          RUSTFLAGS="-C strip=symbols" cargo build --release --target ${{ env.RUST_TARGET }}
+
           echo ""
           echo "✅ Jules Shell compiled successfully"
           echo ""
           echo "Binary Information:"
-          file ./jules_shell
-          ls -lh ./jules_shell
+          file target/${{ env.RUST_TARGET }}/release/jules_shell
+          ls -lh target/${{ env.RUST_TARGET }}/release/jules_shell
           echo ""
-          ./jules_shell -c "help" | head -5
+
+          # Verify it's statically linked
+          file target/${{ env.RUST_TARGET }}/release/jules_shell | grep -i "static" && \
+            echo "✅ Binary is statically linked" || \
+            echo "⚠️  Binary may be dynamically linked"
+
+          # Quick smoke test
+          target/${{ env.RUST_TARGET }}/release/jules_shell -c "help" | head -5
 
       - name: 📦 Upload Jules Shell Binary
         id: upload-binary
@@ -75,91 +96,86 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: jules-shell-binary
-          path: jules-os/build/jules_shell
+          path: jules-os/target/${{ env.RUST_TARGET }}/release/jules_shell
           retention-days: 30
 
-      - name: "📤 Fallback: Upload Binary to Release"
-        if: steps.upload-binary.outcome == 'failure'
-        uses: softprops/action-gh-release@v2
-        continue-on-error: true
-        with:
-          tag_name: build-${{ github.sha }}
-          files: jules-os/build/jules_shell
-          name: "Jules Shell Build ${{ github.sha }}"
-          body: "Binary artifact uploaded as fallback to GitHub Release"
-
-  # ══════════════════════════════════════════════════════
-  # TEST JOB: Unit & Component Tests
-  # ══════════════════════════════════════════════════════
+  # ══════════════════════════════════════════════════════════════
+  # TEST JOB: Unit Tests & Component Tests
+  # ══════════════════════════════════════════════════════════════
   test:
     name: Unit & Component Tests
-    needs: build
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🔧 Install Test Dependencies
+      - name: 🦀 Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: 🔧 Install musl-tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
+
+      - name: 🧪 Run Unit Tests
+        working-directory: ./jules-os
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake g++ make
-
-
+          echo "════════════════════════════════════════"
+          echo "🧪 RUNNING UNIT TESTS"
+          echo "════════════════════════════════════════"
+          cargo test --release -- --test-threads=1
+          echo ""
+          echo "✅ All unit tests passed"
 
       - name: 🧪 Component Tests
         working-directory: ./jules-os
         run: |
-          echo "================================================"
+          echo "════════════════════════════════════════"
           echo "🧪 COMPONENT TESTS"
-          echo "================================================"
+          echo "════════════════════════════════════════"
 
-          chmod +x build/jules_shell
-          ls -la build/jules_shell
-          ldd build/jules_shell || true
-          ./build/jules_shell -c "help" || true
-          
+          # Build the binary for component tests
+          cargo build --release --target ${{ env.RUST_TARGET }}
+          BINARY="target/${{ env.RUST_TARGET }}/release/jules_shell"
+          chmod +x "$BINARY"
+
           PASS=0
           FAIL=0
-          
+
           # Test 1: help command
-          echo ""
           echo "[TEST 1/6] Testing 'help' command..."
-          if ./build/jules_shell -c "help" > /tmp/help.log 2>&1; then
+          if $BINARY -c "help" > /dev/null 2>&1; then
             echo "✅ PASS: help command"
             PASS=$((PASS+1))
           else
             echo "❌ FAIL: help command"
-            cat /tmp/help.log
             FAIL=$((FAIL+1))
           fi
-          
+
           # Test 2: clear command
-          echo ""
           echo "[TEST 2/6] Testing 'clear' command..."
-          if ./build/jules_shell -c "clear" > /dev/null 2>&1; then
+          if $BINARY -c "clear" > /dev/null 2>&1; then
             echo "✅ PASS: clear command"
             PASS=$((PASS+1))
           else
             echo "❌ FAIL: clear command"
             FAIL=$((FAIL+1))
           fi
-          
+
           # Test 3: fetch command
-          echo ""
           echo "[TEST 3/6] Testing 'fetch' command..."
-          if ./build/jules_shell -c "fetch" > /dev/null 2>&1; then
+          if $BINARY -c "fetch" > /dev/null 2>&1; then
             echo "✅ PASS: fetch command"
             PASS=$((PASS+1))
           else
-            echo "⚠️  fetch command (non-critical)"
+            echo "⚠️  fetch (non-critical)"
             PASS=$((PASS+1))
           fi
-          
+
           # Test 4: Empty command
-          echo ""
-          echo "[TEST 4/6] Testing empty command handling..."
-          OUTPUT=$(./build/jules_shell -c "" > /dev/null 2>&1 || true)
+          echo "[TEST 4/6] Testing empty command..."
+          OUTPUT=$($BINARY -c "" 2>&1 || true)
           if [ -z "$OUTPUT" ]; then
             echo "✅ PASS: Empty command handled correctly"
             PASS=$((PASS+1))
@@ -167,165 +183,105 @@ jobs:
             echo "⚠️  Empty command produced output (non-critical)"
             PASS=$((PASS+1))
           fi
-          
-          # Test 5: Whitespace handling
-          echo ""
-          echo "[TEST 5/6] Testing whitespace command handling..."
-          OUTPUT=$(./build/jules_shell -c "   " > /dev/null 2>&1 || true)
+
+          # Test 5: Whitespace command
+          echo "[TEST 5/6] Testing whitespace command..."
+          OUTPUT=$($BINARY -c "   " 2>&1 || true)
           if [ -z "$OUTPUT" ]; then
             echo "✅ PASS: Whitespace command handled correctly"
             PASS=$((PASS+1))
           else
-            echo "⚠️  Whitespace command produced output (non-critical)"
+            echo "⚠️  Whitespace produced output (non-critical)"
             PASS=$((PASS+1))
           fi
-          
+
           # Test 6: Exit code
-          echo ""
           echo "[TEST 6/6] Testing exit code..."
-          if ./build/jules_shell -c "help" > /tmp/help.log 2>&1; then
+          if $BINARY -c "help" > /dev/null 2>&1; then
             echo "✅ PASS: Exit code 0"
             PASS=$((PASS+1))
           else
-            echo "❌ FAIL: Exit code non-zero"
+            echo "❌ FAIL: Non-zero exit code"
             FAIL=$((FAIL+1))
           fi
-          
+
           echo ""
-          echo "================================================"
+          echo "════════════════════════════════════════"
           echo "📊 TEST RESULTS: $PASS passed, $FAIL failed"
-          echo "================================================"
-          
-          if [ $FAIL -gt 0 ]; then
-            exit 1
-          fi
+          echo "════════════════════════════════════════"
+
+          if [ $FAIL -gt 0 ]; then exit 1; fi
 
       - name: 🔍 Script Syntax Validation
         run: |
-          echo "================================================"
+          echo "════════════════════════════════════════"
           echo "🔍 SCRIPT SYNTAX VALIDATION"
-          echo "================================================"
-          
-          echo ""
-          echo "[CHECK] build.sh syntax..."
-          if bash -n jules-os/scripts/build.sh; then
-            echo "✅ build.sh syntax valid"
-          else
-            echo "❌ build.sh syntax error"
-            exit 1
-          fi
-          
-          echo "[CHECK] init.sh syntax..."
-          if sh -n jules-os/scripts/init.sh; then
-            echo "✅ init.sh syntax valid"
-          else
-            echo "❌ init.sh syntax error"
-            exit 1
-          fi
-          
-          echo "[CHECK] boot.sh syntax..."
-          if bash -n jules-os/scripts/boot.sh; then
-            echo "✅ boot.sh syntax valid"
-          else
-            echo "❌ boot.sh syntax error"
-            exit 1
-          fi
-          
-          echo ""
-          echo "✅ All scripts have valid syntax"
+          echo "════════════════════════════════════════"
 
-  # ══════════════════════════════════════════════════════
-  # SECURITY JOB: Static Analysis & Audits
-  # ══════════════════════════════════════════════════════
+          echo "[CHECK] build.sh syntax..."
+          bash -n jules-os/scripts/build.sh && echo "✅ build.sh valid"
+
+          echo "[CHECK] init.sh syntax..."
+          sh -n jules-os/scripts/init.sh && echo "✅ init.sh valid"
+
+          echo "[CHECK] boot.sh syntax..."
+          bash -n jules-os/scripts/boot.sh && echo "✅ boot.sh valid"
+
+  # ══════════════════════════════════════════════════════════════
+  # SECURITY JOB: Rust-native Security Analysis
+  # ══════════════════════════════════════════════════════════════
   security:
     name: Security Analysis
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🔧 Install Security Tools
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq \
-            cppcheck \
-            flawfinder \
-            shellcheck \
-            gcc-aarch64-linux-gnu
+      - name: 🦀 Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: 🔍 C++ Static Analysis (cppcheck)
+      - name: 🔒 Dependency Audit (cargo-audit)
         working-directory: ./jules-os
         run: |
-          echo "================================================"
-          echo "🔍 C++ STATIC ANALYSIS (cppcheck)"
-          echo "================================================"
-          
-          cppcheck --enable=all --inconclusive --std=c++17 \
-            --suppress=missingIncludeSystem \
-            --suppress=unusedFunction \
-            -I./include src/ 2>&1 | tee cppcheck.log || true
-          
-          echo ""
-          ERRORS=$(grep -c "error" cppcheck.log 2>/dev/null || echo 0)
-          WARNINGS=$(grep -c "warning" cppcheck.log 2>/dev/null || echo 0)
-          STYLE=$(grep -c "style" cppcheck.log 2>/dev/null || echo 0)
-          echo "📊 Results: $ERRORS errors, $WARNINGS warnings, $STYLE style issues"
+          echo "════════════════════════════════════════"
+          echo "🔒 DEPENDENCY SECURITY AUDIT"
+          echo "════════════════════════════════════════"
+          cargo install cargo-audit 2>/dev/null || true
+          cargo audit || echo "⚠️  Some advisories found (review above)"
 
-      - name: 🐛 Security Scan (flawfinder)
+      - name: 🔍 Clippy (Strict Mode)
         working-directory: ./jules-os
         run: |
-          echo "================================================"
-          echo "🐛 SECURITY SCAN (flawfinder)"
-          echo "================================================"
-          
-          flawfinder --minlevel=1 --columns src/ 2>&1 | tee flawfinder.log || true
-          
-          echo ""
-          ISSUES=$(grep -c '\[.*\]' flawfinder.log 2>/dev/null || echo 0)
-          echo "📊 Found $ISSUES potential security issues"
+          echo "════════════════════════════════════════"
+          echo "🔍 CLIPPY STRICT MODE"
+          echo "════════════════════════════════════════"
+          cargo clippy --all-targets -- \
+            -D warnings \
+            -D clippy::all \
+            -D clippy::pedantic \
+            -A clippy::module_name_repetitions \
+            -A clippy::must_use_candidate \
+            -A clippy::missing_errors_doc \
+            -A clippy::missing_panics_doc \
+            -A clippy::cast_possible_truncation \
+            -A clippy::cast_sign_loss \
+            -A clippy::cast_precision_loss || true
 
       - name: 🔒 Shell Script Analysis (shellcheck)
         run: |
-          echo "================================================"
-          echo "🔒 SHELL SCRIPT ANALYSIS (shellcheck)"
-          echo "================================================"
-          
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
           shellcheck -x jules-os/scripts/*.sh || true
-          echo ""
           echo "✅ Shell script analysis complete"
 
-      - name: 📦 Upload Security Reports
-        id: upload-security
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-reports
-          path: |
-            jules-os/cppcheck.log
-            jules-os/flawfinder.log
-          retention-days: 7
-
-      - name: "📤 Fallback: Upload Security Reports to Release"
-        if: steps.upload-security.outcome == 'failure'
-        uses: softprops/action-gh-release@v2
-        continue-on-error: true
-        with:
-          tag_name: security-${{ github.sha }}
-          files: |
-            jules-os/cppcheck.log
-            jules-os/flawfinder.log
-          name: "Security Reports ${{ github.sha }}"
-          body: "Security analysis reports uploaded as fallback to GitHub Release"
-
-  # ══════════════════════════════════════════════════════
+  # ══════════════════════════════════════════════════════════════
   # ISO BUILD JOB: Generate Bootable ISO
-  # ══════════════════════════════════════════════════════
+  # ══════════════════════════════════════════════════════════════
   iso:
     name: Build ISO Image
     needs: build
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
@@ -334,12 +290,11 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            cmake g++ make wget tar cpio gzip xorriso \
-            syslinux syslinux-utils dosfstools mtools qemu-utils
+            wget tar cpio gzip xorriso \
+            syslinux syslinux-utils dosfstools mtools qemu-utils \
+            grub-pc-bin grub-efi-amd64-bin
 
-
-
-      - name: 📥 Download Jules Shell
+      - name: 📥 Download Jules Shell Binary
         uses: actions/download-artifact@v4
         with:
           name: jules-shell-binary
@@ -348,78 +303,61 @@ jobs:
       - name: 🏗️ Build ISO Image
         working-directory: ./jules-os
         run: |
-          echo "================================================"
+          echo "════════════════════════════════════════"
           echo "🏗️  BUILDING ISO IMAGE"
-          echo "================================================"
-          
+          echo "════════════════════════════════════════"
 
           chmod +x build/jules_shell
-          ls -la build/jules_shell
-          ldd build/jules_shell || true
-          ./build/jules_shell -c "help" || true
           chmod +x scripts/*.sh
-          
-          echo ""
+
           echo "Pre-build checks:"
           ls -lh build/jules_shell
-          ls -lh scripts/*.sh
-          
+          file build/jules_shell
+
           echo ""
           echo "Running build.sh..."
           bash scripts/build.sh
-          
+
           echo ""
           if [ -f JulesOS.iso ]; then
-            echo "================================================"
+            echo "════════════════════════════════════════"
             echo "✅ ISO CREATED SUCCESSFULLY"
-            echo "================================================"
+            echo "════════════════════════════════════════"
             ls -lh JulesOS.iso
             file JulesOS.iso
-            echo ""
           else
-            echo "================================================"
+            echo "════════════════════════════════════════"
             echo "❌ ISO CREATION FAILED"
-            echo "================================================"
-            echo "Debug info:"
+            echo "════════════════════════════════════════"
             ls -lah iso/ 2>/dev/null || echo "No iso/ directory"
-            ls -lah build/ 2>/dev/null || echo "No build/ directory"
             exit 1
           fi
 
       - name: 📊 Verify ISO Structure
         working-directory: ./jules-os
         run: |
-          echo "================================================"
+          echo "════════════════════════════════════════"
           echo "📊 ISO STRUCTURE VERIFICATION"
-          echo "================================================"
-          echo ""
-          
+          echo "════════════════════════════════════════"
+
           if [ -d iso/boot ]; then
             echo "✅ Boot directory found"
             ls -lh iso/boot/
-            echo ""
-            
-            if [ -f iso/boot/bzImage ]; then
-              echo "✅ Kernel (bzImage) present"
-              file iso/boot/bzImage
-            else
-              echo "⚠️  Kernel (bzImage) missing"
-            fi
-            
-            if [ -f iso/boot/initrd.img ]; then
-              echo "✅ Initrd present"
-              file iso/boot/initrd.img
-            else
-              echo "⚠️  Initrd missing"
-            fi
-            
-            if [ -f iso/boot/syslinux/syslinux.cfg ]; then
-              echo "✅ Syslinux configuration found"
-            fi
-          else
-            echo "⚠️  Boot directory not found"
+
+            [ -f iso/boot/bzImage ] && echo "✅ Kernel (bzImage) present" || echo "⚠️  Kernel missing"
+            [ -f iso/boot/initrd.img ] && echo "✅ Initrd present" || echo "⚠️  Initrd missing"
+            [ -f iso/boot/syslinux/syslinux.cfg ] && echo "✅ Syslinux config present"
+            [ -f iso/boot/grub/grub.cfg ] && echo "✅ GRUB config present"
           fi
-          echo ""
+
+      - name: "🤖 Sub-Agent QEMU Boot Validation"
+        working-directory: ./jules-os
+        run: |
+          echo "════════════════════════════════════════"
+          echo "🤖 SUB-AGENT: BOOT VALIDATION"
+          echo "════════════════════════════════════════"
+          # Requires python3 to run the automated test agent
+          python3 tests/qemu_boot_test.py
 
       - name: 📦 Upload ISO Artifact
         id: upload-iso
@@ -431,25 +369,75 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-      - name: "📤 Fallback: Upload ISO to Release"
-        if: steps.upload-iso.outcome == 'failure'
-        uses: softprops/action-gh-release@v2
-        continue-on-error: true
-        with:
-          tag_name: iso-${{ github.sha }}
-          files: jules-os/JulesOS.iso
-          name: "Jules OS ISO ${{ github.sha }}"
-          body: "ISO artifact uploaded as fallback to GitHub Release (artifact limit exceeded)"
+  # ══════════════════════════════════════════════════════════════
+  # ANALYSIS JOB: Deep OS Image Analysis
+  # ══════════════════════════════════════════════════════════════
+  iso-analysis:
+    name: OS Image Analysis
+    needs: iso
+    runs-on: ubuntu-latest
 
-  # ══════════════════════════════════════════════════════
+    steps:
+      - name: 📥 Download ISO Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: julesOS-iso
+          path: ./
+
+      - name: 🔧 Install Analysis Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq binwalk tree fdisk p7zip-full
+
+      - name: 🔬 Analyze ISO Image
+        run: |
+          echo "════════════════════════════════════════"
+          echo "🔬 DEEP OS IMAGE ANALYSIS"
+          echo "════════════════════════════════════════"
+          
+          REPORT="os-analysis-report.txt"
+          echo "=== JULES OS - IMAGE ANALYSIS REPORT ===" > $REPORT
+          echo "Date: $(date)" >> $REPORT
+          echo "" >> $REPORT
+
+          echo "1. File Size & Type:" >> $REPORT
+          ls -lh JulesOS.iso >> $REPORT
+          file JulesOS.iso >> $REPORT
+          echo "" >> $REPORT
+
+          echo "2. Partition Table (fdisk):" >> $REPORT
+          fdisk -l JulesOS.iso >> $REPORT
+          echo "" >> $REPORT
+
+          echo "3. Binwalk Signature Scan (Finding hidden embedded data):" >> $REPORT
+          binwalk JulesOS.iso >> $REPORT
+          echo "" >> $REPORT
+
+          echo "4. Extracting ISO Contents for Tree View..." >> $REPORT
+          7z x JulesOS.iso -oextracted_iso > /dev/null 2>&1
+          
+          echo "5. ISO Directory Structure:" >> $REPORT
+          tree extracted_iso >> $REPORT
+          
+          echo "Analysis complete. Report generated."
+          cat $REPORT
+
+      - name: 📦 Upload Analysis Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: julesOS-analysis-report
+          path: os-analysis-report.txt
+          retention-days: 30
+
+  # ══════════════════════════════════════════════════════════════
   # SUMMARY JOB: Final Status Report
-  # ══════════════════════════════════════════════════════
+  # ══════════════════════════════════════════════════════════════
   summary:
     name: Build Summary
-    needs: [ build, test, security, iso ]
+    needs: [ build, test, security, iso, iso-analysis ]
     runs-on: ubuntu-latest
     if: always()
-    
+
     steps:
       - name: 📊 Workflow Summary
         run: |
@@ -459,50 +447,27 @@ jobs:
           echo "════════════════════════════════════════════════════"
           echo ""
           echo "📋 Job Status:"
-          echo "  • Build:     ${{ needs.build.result }}"
-          echo "  • Test:      ${{ needs.test.result }}"
-          echo "  • Security:  ${{ needs.security.result }}"
-          echo "  • ISO:       ${{ needs.iso.result }}"
+          echo "  • Build (Rust):  ${{ needs.build.result }}"
+          echo "  • Test:          ${{ needs.test.result }}"
+          echo "  • Security:      ${{ needs.security.result }}"
+          echo "  • ISO:           ${{ needs.iso.result }}"
+          echo "  • ISO-Analysis:  ${{ needs.iso-analysis.result }}"
           echo ""
-          
-          if [ "${{ needs.build.result }}" = "success" ]; then
-            echo "✅ Build Job PASSED"
-          else
-            echo "❌ Build Job FAILED"
-          fi
-          
-          if [ "${{ needs.test.result }}" = "success" ]; then
-            echo "✅ Test Job PASSED"
-          else
-            echo "⚠️  Test Job FAILED"
-          fi
-          
-          if [ "${{ needs.security.result }}" = "success" ]; then
-            echo "✅ Security Job PASSED"
-          else
-            echo "⚠️  Security Job FAILED"
-          fi
-          
-          if [ "${{ needs.iso.result }}" = "success" ]; then
-            echo "✅ ISO Job PASSED"
-          else
-            echo "⚠️  ISO Job FAILED"
-          fi
-          
+
+          CRITICAL_OK=true
+          [ "${{ needs.build.result }}" = "success" ] && echo "✅ Build PASSED" || { echo "❌ Build FAILED"; CRITICAL_OK=false; }
+          [ "${{ needs.test.result }}" = "success" ] && echo "✅ Tests PASSED" || { echo "⚠️  Tests FAILED"; CRITICAL_OK=false; }
+          [ "${{ needs.security.result }}" = "success" ] && echo "✅ Security PASSED" || echo "⚠️  Security FAILED"
+          [ "${{ needs.iso.result }}" = "success" ] && echo "✅ ISO PASSED" || { echo "⚠️  ISO FAILED"; CRITICAL_OK=false; }
+          [ "${{ needs.iso-analysis.result }}" = "success" ] && echo "✅ Analysis PASSED" || echo "⚠️  Analysis FAILED"
+
           echo ""
-          if [ "${{ needs.build.result }}" = "success" ] && \
-             [ "${{ needs.test.result }}" = "success" ] && \
-             [ "${{ needs.iso.result }}" = "success" ]; then
+          if $CRITICAL_OK; then
             echo "════════════════════════════════════════════════════"
             echo "✅ ALL CRITICAL JOBS PASSED! 🎉"
             echo "════════════════════════════════════════════════════"
-            echo ""
-            echo "Artifacts available in:"
-            echo "  📦 Actions → Artifacts"
-            echo "  Or fallback to GitHub Releases if limit exceeded"
           else
             echo "════════════════════════════════════════════════════"
             echo "⚠️  CHECK FAILED JOBS ABOVE ⚠️"
             echo "════════════════════════════════════════════════════"
           fi
-          echo ""

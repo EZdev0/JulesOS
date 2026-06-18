@@ -15,10 +15,10 @@ libc = "0.2"
 
 [profile.release]
 opt-level = 3          # Maximum optimization (-O3 equivalent)
-lto = true             # Link-Time Optimization → smaller + faster binary
-strip = true           # Strip debug symbols → smaller binary
-panic = "abort"        # No unwinding → smaller binary, no overhead
-codegen-units = 1      # Single codegen unit → better cross-module optimization
+lto = "fat"            # Fat LTO -> CachyOS-like maximum cross-crate optimization
+strip = true           # Strip debug symbols -> smaller binary
+panic = "abort"        # No unwinding -> smaller binary, no overhead
+codegen-units = 1      # Single codegen unit -> better cross-module optimization, smaller/faster binary
 
 [profile.dev]
 opt-level = 1          # Some optimization even in debug for testing

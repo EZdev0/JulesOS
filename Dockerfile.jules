@@ -1,0 +1,8 @@
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    wget tar cpio gzip xorriso syslinux syslinux-utils \
+    dosfstools mtools qemu-utils grub-pc-bin grub-efi-amd64-bin \
+    cargo rustc nasm g++ \
+    qemu-system-x86 python3
+WORKDIR /build

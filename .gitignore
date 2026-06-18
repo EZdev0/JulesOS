@@ -1,8 +1,25 @@
-build/
-iso/
-build_test/
-build_unit_tests/
-data.img
-JulesOS.iso
+# Rust build artifacts
+/jules-os/target/
+/jules-os/Cargo.lock
+
+# OS build artifacts
+/jules-os/build/
+/jules-os/iso/
+/jules-os/JulesOS.iso
+/jules-os/data.img
+/jules-os/run_qemu.sh
+
+# Legacy C++ build artifacts
+/jules-os/build_test/
+/jules-os/build_unit_tests/
+
+# IDE
 .vscode/
-compile_commands.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

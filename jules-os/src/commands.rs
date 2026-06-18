@@ -25,6 +25,7 @@ pub fn show_help() {
     println!("{YELLOW}fetch{RESET}     - Display system info beautifully");
     println!("{YELLOW}python{RESET}    - Enter the Python Interactive Shell");
     println!("{YELLOW}jupdate{RESET}   - Update system packages");
+    println!("{YELLOW}desktop{RESET}   - Launch the JulesOS Wayland Desktop GUI");
     println!("{YELLOW}clear{RESET}     - Clear the screen");
     println!("{YELLOW}reboot{RESET}    - Instantly reboot (restores immutable state)");
     println!("{YELLOW}poweroff{RESET}  - Shutdown the OS");
@@ -220,6 +221,29 @@ pub fn run_clear() {
     let _ = io::stdout().flush();
 }
 
+/// Launch the Wayland Desktop Environment (Sway).
+pub fn run_desktop() {
+    println!("{CYAN}{BOLD}[+] Initializing JulesOS Wayland Desktop...{RESET}");
+    
+    // Set essential Wayland environment variables
+    std::env::set_var("XDG_SESSION_TYPE", "wayland");
+    std::env::set_var("XDG_CURRENT_DESKTOP", "sway");
+    std::env::set_var("MOZ_ENABLE_WAYLAND", "1"); // For Firefox if installed
+    std::env::set_var("WLR_NO_HARDWARE_CURSORS", "1"); // Better VM/QEMU compatibility
+    std::env::set_var("XDG_RUNTIME_DIR", "/run/user/1000");
+
+    let sway_path = system::find_executable(&["/usr/bin/sway", "/bin/sway"], "");
+
+    if sway_path.is_empty() {
+        print_error("Desktop components not installed! Rebuild ISO with desktop feature.");
+        return;
+    }
+
+    println!("{YELLOW}-> Starting Sway Compositor...{RESET}");
+    execute_external(&sway_path);
+    println!("{YELLOW}-> Desktop session ended.{RESET}");
+}
+
 /// Execute an external command using fork + execvp.
 ///
 /// This is the core process-spawning mechanism. It:
@@ -369,6 +393,7 @@ pub fn execute_command(cmd: &str) {
         "status" => show_status(),
         "boost" => run_boost(),
         "fetch" => run_fetch(),
+        "desktop" => run_desktop(),
         "python" | "python3" => run_python(),
         "jupdate" | "update" => run_jupdate(),
         "clear" => run_clear(),

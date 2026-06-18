@@ -77,8 +77,19 @@ echo -e "${NC}"
 # ── Step 1: Clean Previous Build ──────────────────────────────
 step "Step 1/8: Cleaning Previous Build"
 
+# Preserve pre-compiled jules_shell if it exists (e.g. downloaded by CI)
+if [ -f "${BUILD_DIR}/jules_shell" ]; then
+    info "Preserving pre-compiled jules_shell..."
+    mv "${BUILD_DIR}/jules_shell" "${JULES_DIR}/jules_shell.tmp"
+fi
+
 rm -rf "${BUILD_DIR}" "${ISO_DIR}"
 mkdir -p "${BUILD_DIR}" "${ISO_DIR}/boot/grub" "${ISO_DIR}/boot/syslinux" "${ROOTFS_DIR}"
+
+if [ -f "${JULES_DIR}/jules_shell.tmp" ]; then
+    mv "${JULES_DIR}/jules_shell.tmp" "${BUILD_DIR}/jules_shell"
+fi
+
 ok "Build environment cleaned."
 
 # ── Step 2: Compile Jules Shell (Rust) ────────────────────────
@@ -245,12 +256,57 @@ fi
 
 cd "${JULES_DIR}"
 
+# ── Step 4.5: Install Wayland Desktop & Plymouth ──────────────
+step "Step 4.5/8: Installing Desktop & Plymouth (Offline)"
+
+info "Downloading apk-tools-static for offline package installation..."
+APK_STATIC_PKG=$(wget -qO- "${ALPINE_REPO}/main/${ALPINE_ARCH}/" 2>/dev/null | grep -oE 'apk-tools-static-[0-9][a-zA-Z0-9._-]*\.apk' | sort -V | tail -n 1) || true
+if [ -n "$APK_STATIC_PKG" ]; then
+    cd "${BUILD_DIR}"
+    wget -q "${ALPINE_REPO}/main/${ALPINE_ARCH}/${APK_STATIC_PKG}" 2>/dev/null || true
+    tar -zxf "${APK_STATIC_PKG}" sbin/apk.static 2>/dev/null || true
+    
+    if [ -f sbin/apk.static ]; then
+        info "Installing Desktop Packages into RootFS..."
+        chmod +x sbin/apk.static
+        
+        mkdir -p "${ROOTFS_DIR}/etc/apk"
+        {
+            echo "${ALPINE_REPO}/main"
+            echo "${ALPINE_REPO}/community"
+        } > "${ROOTFS_DIR}/etc/apk/repositories"
+        
+        # Install packages into rootfs offline
+        ./sbin/apk.static -X "${ALPINE_REPO}/main" -X "${ALPINE_REPO}/community" -U --allow-untrusted --root "${ROOTFS_DIR}" --initdb add \
+            plymouth \
+            sway swaybg waybar alacritty \
+            mesa-dri-gallium mesa-egl wlroots \
+            font-dejavu font-terminus \
+            eudev eudev-openrc seatd dbus \
+            python3 py3-gobject3 gtk+3.0 wine box64 \
+            || warn "Some desktop packages failed to install. Continuing..."
+            
+        ok "Desktop & Plymouth packages installed."
+    else
+        warn "Failed to extract apk.static. Desktop may not be available."
+    fi
+    cd "${JULES_DIR}"
+else
+    warn "Could not find apk-tools-static. Skipping desktop installation."
+fi
+
 # ── Step 5: Integrate Jules OS into RootFS ────────────────────
 step "Step 5/8: Integrating Jules OS Components"
 
 # Install Jules Shell binary
 install -m 755 "${BUILD_DIR}/jules_shell" "${ROOTFS_DIR}/bin/jules_shell"
 ok "Jules Shell installed to /bin/jules_shell"
+
+# Install Legacy Translator GUI
+if [ -f "${JULES_DIR}/src/translator_gui.py" ]; then
+    install -m 755 "${JULES_DIR}/src/translator_gui.py" "${ROOTFS_DIR}/usr/bin/jules-translator"
+    ok "Legacy Translator installed to /usr/bin/jules-translator"
+fi
 
 # Install init script
 install -m 755 "${JULES_DIR}/scripts/init.sh" "${ROOTFS_DIR}/init"
@@ -331,7 +387,62 @@ ttyS0::respawn:/bin/jules_shell
 ::shutdown:/bin/echo Shutting down Jules OS...
 EOF_INITTAB
 
-ok "System files and user configuration installed."
+# ── Wayland Desktop Configuration ──
+mkdir -p "${ROOTFS_DIR}/home/jules/.config/sway"
+mkdir -p "${ROOTFS_DIR}/home/jules/.config/waybar"
+mkdir -p "${ROOTFS_DIR}/home/jules/.config/alacritty"
+
+# Sway Config (Minimal, GPU Accelerated)
+cat > "${ROOTFS_DIR}/home/jules/.config/sway/config" << 'EOF_SWAY'
+# Default modifier is Super/Windows key
+set $mod Mod4
+
+# Terminal
+set $term alacritty
+
+# Output configuration (Use Native Resolution)
+output * bg #1a1a1a solid_color
+
+# Key bindings
+bindsym $mod+Return exec $term
+bindsym $mod+q kill
+bindsym $mod+d exec jules_shell -c "help" # Replace with actual launcher later
+bindsym $mod+Shift+e exec swaymsg exit
+bindsym $mod+t exec jules-translator
+
+# Autostart
+exec waybar
+EOF_SWAY
+
+# Waybar Config
+cat > "${ROOTFS_DIR}/home/jules/.config/waybar/config" << 'EOF_WAYBAR'
+{
+    "layer": "top",
+    "position": "top",
+    "height": 30,
+    "modules-left": ["sway/workspaces", "sway/mode"],
+    "modules-center": ["sway/window"],
+    "modules-right": ["cpu", "memory", "clock"],
+    "cpu": { "format": "CPU: {usage}%" },
+    "memory": { "format": "RAM: {}%" },
+    "clock": { "format": "{:%H:%M | %d.%m.%Y}" }
+}
+EOF_WAYBAR
+
+# Alacritty Config
+cat > "${ROOTFS_DIR}/home/jules/.config/alacritty/alacritty.toml" << 'EOF_ALACRITTY'
+[window]
+padding = { x = 10, y = 10 }
+opacity = 0.95
+
+[font]
+size = 12.0
+EOF_ALACRITTY
+
+# Secure permissions for the configurations
+chown -R 1000:1000 "${ROOTFS_DIR}/home/jules/.config" 2>/dev/null || true
+
+ok "System files, Desktop configurations and user configuration installed."
 
 # ── Step 6: Pack Initramfs ────────────────────────────────────
 step "Step 6/8: Packing Initramfs (OS Image)"
@@ -346,8 +457,8 @@ ok "Initramfs created: ${INITRD_SIZE}"
 # ── Step 7: Configure Bootloaders ─────────────────────────────
 step "Step 7/8: Configuring Bootloaders (BIOS + UEFI)"
 
-# Kernel command line (optimized for both real hardware and QEMU)
-KERNEL_CMDLINE="root=/dev/ram0 rw console=tty0 console=ttyS0,115200 quiet loglevel=3 mitigations=off nowatchdog no_timer_check"
+# Kernel command line (optimized for both real hardware and QEMU + Plymouth)
+KERNEL_CMDLINE="root=/dev/ram0 rw console=tty0 console=ttyS0,115200 quiet splash vt.global_cursor_default=0 loglevel=3 mitigations=off nowatchdog no_timer_check"
 
 # ─── 7a. Syslinux (BIOS Boot) ───
 cat > "${ISO_DIR}/boot/syslinux/syslinux.cfg" << EOF_SYSLINUX

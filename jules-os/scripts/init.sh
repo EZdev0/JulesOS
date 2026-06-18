@@ -55,7 +55,17 @@ for overlay_target in /etc; do
     fi
 done
 
-echo "[ OK ] Immutable layer configured. Changes are ephemeral."
+# STRICT READ-ONLY CORE (Anti-Malware)
+# Make critical system directories strictly read-only in RAM
+for ro_dir in /bin /sbin /usr /lib; do
+    if [ -d "$ro_dir" ]; then
+        mount --bind "$ro_dir" "$ro_dir"
+        mount -o remount,ro,bind "$ro_dir"
+        echo "[ OK ] Secured $ro_dir as strictly read-only."
+    fi
+done
+
+echo "[ OK ] Immutable layer configured. Core is indestructible."
 
 # ══════════════════════════════════════════════════════════════
 # 3. HARDWARE DRIVER LOADING
@@ -193,15 +203,16 @@ for dev in /dev/vda2 /dev/sda2 /dev/vdb /dev/sdb; do
 done
 
 if [ -n "$VAULT_DEV" ]; then
-    if ! mount "$VAULT_DEV" /home 2>/dev/null; then
+    if ! mount -o rw,nosuid,nodev,noexec "$VAULT_DEV" /home 2>/dev/null; then
         echo "[ INFO ] Formatting new Vault at $VAULT_DEV..."
         mkfs.ext4 -F -L "JulesVault" "$VAULT_DEV" 2>/dev/null || mkfs.vfat "$VAULT_DEV" 2>/dev/null
-        mount "$VAULT_DEV" /home
+        # Mount with strict security flags: prevents malware execution from user data
+        mount -o rw,nosuid,nodev,noexec "$VAULT_DEV" /home
     fi
-    echo "[ OK ] Vault Mounted at /home (persistent)."
+    echo "[ OK ] Vault Mounted at /home (persistent & secured)."
 else
     echo "[ WARN ] Vault not found. Using ephemeral /home (RAM)."
-    mount -t tmpfs tmpfs /home
+    mount -t tmpfs -o rw,nosuid,nodev,noexec tmpfs /home
 fi
 
 # ══════════════════════════════════════════════════════════════
@@ -240,20 +251,44 @@ cd /home/jules || cd /
 # 9. PERFORMANCE TUNING (CachyOS Inspired)
 # ══════════════════════════════════════════════════════════════
 
-echo "[ OK ] Applying Jules OS Tuning..."
+echo "[ OK ] Applying Jules OS Tuning (CachyOS Optimized)..."
 
-# Memory management
+# Memory management & ZRAM (CachyOS Style)
 echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
 echo 1 > /proc/sys/vm/overcommit_memory 2>/dev/null || true
 echo 10 > /proc/sys/vm/swappiness 2>/dev/null || true
 
+# Initialize ZRAM Swap (Compresses RAM to avoid disk paging)
+if modprobe zram 2>/dev/null; then
+    TOTAL_RAM=$(awk '/MemTotal/ {print $2}' /proc/meminfo 2>/dev/null || echo "1048576")
+    # Allocate 50% of RAM to ZRAM
+    ZRAM_SIZE=$(( TOTAL_RAM * 512 )) # (TOTAL_RAM * 1024 / 2)
+    echo zstd > /sys/block/zram0/comp_algorithm 2>/dev/null || echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null
+    echo "$ZRAM_SIZE" > /sys/block/zram0/disksize 2>/dev/null
+    mkswap /dev/zram0 2>/dev/null
+    swapon --discard --priority 100 /dev/zram0 2>/dev/null
+    echo "[ OK ] ZRAM Swap initialized (${ZRAM_SIZE} bytes)."
+fi
+
+# CPU Governor & amd-pstate Tuning (Force maximum performance)
+if [ -d /sys/devices/system/cpu ]; then
+    for cpu_freq in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+        [ -f "$cpu_freq" ] && echo performance > "$cpu_freq" 2>/dev/null || true
+    done
+    # AMD P-State EPP Tuning (Active Mode)
+    for epp in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+        [ -f "$epp" ] && echo performance > "$epp" 2>/dev/null || true
+    done
+    echo "[ OK ] CPU Governors set to maximum performance."
+fi
+
 # Network performance (TCP BBR congestion control)
 echo bbr > /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null || true
 
-# Scheduler optimization
+# Scheduler optimization (BORE/EEVDF heuristics support)
 echo 1 > /proc/sys/kernel/sched_autogroup_enabled 2>/dev/null || true
 
-# Increase max memory map areas (needed for some applications)
+# Increase max memory map areas (needed for some applications/games)
 echo 2147483642 > /proc/sys/vm/max_map_count 2>/dev/null || true
 
 # Disable kernel address exposure (security)
@@ -279,5 +314,5 @@ echo "  Network: $([ -n "$NET_IF" ] && echo "$NET_IF" || echo "none")"
 echo "════════════════════════════════════════════════════════"
 echo ""
 
-echo "[ OK ] Handing over control to Jules Shell (C++ Core)..."
+echo "[ OK ] Handing over control to Jules Shell (Rust Core)..."
 exec /bin/jules_shell
