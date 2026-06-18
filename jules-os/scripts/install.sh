@@ -62,12 +62,9 @@ info "OS Type: ${OS_TYPE}"
 # Detect distribution
 DISTRO="unknown"
 PKG_MGR="unknown"
-IS_TERMUX=0
-
 if [[ "${PREFIX:-}" == *"termux"* ]]; then
     DISTRO="termux"
     PKG_MGR="pkg"
-    IS_TERMUX=1
 elif [ -f /etc/os-release ]; then
     . /etc/os-release
     DISTRO="${ID:-unknown}"
@@ -133,7 +130,8 @@ install_deps() {
             if ! command -v cargo >/dev/null 2>&1; then
                 info "Installing Rust toolchain..."
                 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-                source "$HOME/.cargo/env"
+                # shellcheck disable=SC1091
+                source "$HOME/.cargo/env" || true
             fi
             ;;
         pacman)

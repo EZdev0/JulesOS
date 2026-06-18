@@ -30,11 +30,11 @@ echo "[INFO] Checking hardware requirements..."
 TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
 if [ -n "$TOTAL_RAM_KB" ] && [ "$TOTAL_RAM_KB" -lt 500000 ]; then
     clear
-    echo -e "\033[1;41m\033[1;37m                                                          \033[0m"
-    echo -e "\033[1;41m\033[1;37m  [FATAL ERROR] HARDWARE NOT SUPPORTED                    \033[0m"
-    echo -e "\033[1;41m\033[1;37m  JulesOS requires at least 512MB RAM to function safely. \033[0m"
-    echo -e "\033[1;41m\033[1;37m  System halted to prevent data corruption.               \033[0m"
-    echo -e "\033[1;41m\033[1;37m                                                          \033[0m"
+    printf "\033[1;41m\033[1;37m                                                          \033[0m\n"
+    printf "\033[1;41m\033[1;37m  [FATAL ERROR] HARDWARE NOT SUPPORTED                    \033[0m\n"
+    printf "\033[1;41m\033[1;37m  JulesOS requires at least 512MB RAM to function safely. \033[0m\n"
+    printf "\033[1;41m\033[1;37m  System halted to prevent data corruption.               \033[0m\n"
+    printf "\033[1;41m\033[1;37m                                                          \033[0m\n"
     while true; do sleep 60; done
 fi
 
@@ -57,7 +57,8 @@ mkdir -p /mnt/overlay-upper/upper /mnt/overlay-upper/work
 
 # Key directories to protect with OverlayFS
 # /etc is the primary target - system config should be immutable
-for overlay_target in /etc; do
+OVERLAY_TARGETS="/etc"
+for overlay_target in $OVERLAY_TARGETS; do
     if [ -d "$overlay_target" ]; then
         overlay_name=$(echo "$overlay_target" | tr '/' '_')
         mkdir -p "/mnt/overlay-upper/upper${overlay_name}"
@@ -115,10 +116,10 @@ if command -v modprobe >/dev/null 2>&1; then
 
     # Auto-detect hardware via modalias with Loading Animation
     if [ -d /sys/bus ]; then
-        echo -n "  [WAIT] Scanning PCI/USB buses and loading drivers...  "
-        spinstr='|/-\'
+        printf "  [WAIT] Scanning PCI/USB buses and loading drivers...  "
+        spinstr="|/-\\"
         i=0
-        for modalias_file in $(find /sys/bus/*/devices/*/modalias -maxdepth 0 2>/dev/null); do
+        find /sys/bus -name modalias 2>/dev/null | while read -r modalias_file; do
             modalias=$(cat "$modalias_file" 2>/dev/null)
             if [ -n "$modalias" ]; then
                 modprobe "$modalias" 2>/dev/null || true
@@ -157,7 +158,7 @@ if [ ! -f /etc/machine-id ] || [ ! -s /etc/machine-id ]; then
     if command -v dbus-uuidgen >/dev/null 2>&1; then
         dbus-uuidgen > /etc/machine-id 2>/dev/null || true
     else
-        cat /proc/sys/kernel/random/uuid 2>/dev/null | tr -d '-' > /etc/machine-id || true
+        tr -d '-' < /proc/sys/kernel/random/uuid > /etc/machine-id 2>/dev/null || true
     fi
 fi
 
@@ -298,11 +299,11 @@ fi
 # CPU Governor & amd-pstate Tuning (Force maximum performance)
 if [ -d /sys/devices/system/cpu ]; then
     for cpu_freq in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-        [ -f "$cpu_freq" ] && echo performance > "$cpu_freq" 2>/dev/null || true
+        if [ -f "$cpu_freq" ]; then echo performance > "$cpu_freq" 2>/dev/null || true; fi
     done
     # AMD P-State EPP Tuning (Active Mode)
     for epp in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
-        [ -f "$epp" ] && echo performance > "$epp" 2>/dev/null || true
+        if [ -f "$epp" ]; then echo performance > "$epp" 2>/dev/null || true; fi
     done
     echo "[ OK ] CPU Governors set to maximum performance."
 fi

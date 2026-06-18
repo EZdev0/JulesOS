@@ -138,7 +138,7 @@ fi
 cd "${JULES_DIR}"
 
 ok "Jules Shell compiled successfully."
-info "Binary: $(ls -lh "${BUILD_DIR}/jules_shell" | awk '{print $5}')"
+info "Binary: $(find "${BUILD_DIR}/jules_shell" -printf "%s bytes\n")"
 info "Type: $(file "${BUILD_DIR}/jules_shell" 2>/dev/null | cut -d: -f2 | head -c80)"
 
 # ── Step 3: Download Alpine Minirootfs ────────────────────────
@@ -220,7 +220,7 @@ fi
 KERNEL_VERSION=""
 if [ -d lib/modules ]; then
     cp -a lib/modules "${ROOTFS_DIR}/lib/" 2>/dev/null || true
-    KERNEL_VERSION=$(ls "${ROOTFS_DIR}/lib/modules/" 2>/dev/null | head -n 1)
+    KERNEL_VERSION=$(find "${ROOTFS_DIR}/lib/modules/" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" 2>/dev/null | head -n 1)
     ok "Kernel modules installed: ${KERNEL_VERSION}"
 else
     warn "No kernel modules found in package. Trying separate modules package..."
@@ -234,7 +234,7 @@ else
         tar -zxf "${MODULES_PKG}" 2>/dev/null || true
         if [ -d lib/modules ]; then
             cp -a lib/modules "${ROOTFS_DIR}/lib/" 2>/dev/null || true
-            KERNEL_VERSION=$(ls "${ROOTFS_DIR}/lib/modules/" 2>/dev/null | head -n 1)
+            KERNEL_VERSION=$(find "${ROOTFS_DIR}/lib/modules/" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" 2>/dev/null | head -n 1)
             ok "Kernel modules installed from separate package: ${KERNEL_VERSION}"
         fi
     fi

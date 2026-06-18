@@ -33,7 +33,11 @@ RUN apt-get update && apt-get install -y \
     wget tar cpio gzip xorriso syslinux syslinux-utils pv \
     dosfstools mtools qemu-utils grub-pc-bin grub-efi-amd64-bin \
     cargo rustc nasm g++ shellcheck cppcheck \
-    qemu-system-x86 python3
+    qemu-system-x86 python3 python3-pip curl jq
+
+# Installiere Python Security Tools und Trivy Scanner
+RUN pip3 install --break-system-packages flake8 bandit || true
+RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
 # Kopiere den gesamten Code ins Image (Vermeidet Volume Mount Crash auf Windows)
 WORKDIR /build
@@ -59,14 +63,44 @@ $containerId = "jules-test-container"
 
 $containerScript = @"
 mkdir -p /build/linting_logs
-echo 'Running Shellcheck...'
-shellcheck jules-os/scripts/*.sh > /build/linting_logs/shellcheck.log || true
-echo 'Running Cppcheck...'
-cppcheck --enable=all jules-os/src/legacy/ > /build/linting_logs/cppcheck.log 2>&1 || true
-echo 'Running Cargo Clippy (Soft Mode)...'
-cd /build/jules-os
-cargo clippy --all-targets > /build/linting_logs/clippy.log 2>&1 || true
 
+# Master Logger Funktion
+log_task() {
+    local TOOL="\$1"
+    local LOGFILE="/build/linting_logs/\${TOOL,,}.log"
+    local START_TIME=\$(date +%s)
+    local START_DATE=\$(date '+%Y-%m-%d %H:%M:%S')
+    
+    echo "[\$START_DATE] [\$TOOL] STARTED..." | tee -a /build/linting_logs/master_summary.log
+    
+    # Execute command and log output
+    eval "\$2" > "\$LOGFILE" 2>&1
+    local EXIT_CODE=\$?
+    
+    local END_TIME=\$(date +%s)
+    local DURATION=\$((END_TIME - START_TIME))
+    local MINS=\$((DURATION / 60))
+    local SECS=\$((DURATION % 60))
+    
+    if [ \$EXIT_CODE -eq 0 ]; then
+        echo "[\$(date '+%Y-%m-%d %H:%M:%S')] [\$TOOL] PASSED in \${MINS}m \${SECS}s" | tee -a /build/linting_logs/master_summary.log
+    else
+        echo "[\$(date '+%Y-%m-%d %H:%M:%S')] [\$TOOL] WARNING/FAILED (Code \$EXIT_CODE) in \${MINS}m \${SECS}s" | tee -a /build/linting_logs/master_summary.log
+    fi
+}
+
+echo "=== JULES OS SMART ANALYTICS ===" > /build/linting_logs/master_summary.log
+
+log_task "SHELLCHECK" "shellcheck jules-os/scripts/*.sh"
+log_task "CPPCHECK" "cppcheck --enable=all jules-os/src/legacy/"
+log_task "CLIPPY" "cd /build/jules-os && cargo clippy --all-targets"
+log_task "FLAKE8" "flake8 /build/jules-os/tests/ --exit-zero"
+log_task "BANDIT" "bandit -r /build/jules-os/tests/ -ll -ii"
+log_task "TRIVY" "trivy fs /build/jules-os/ --exit-code 0 --severity HIGH,CRITICAL --no-progress"
+
+echo -e "\n[\$(date '+%Y-%m-%d %H:%M:%S')] [SYSTEM] Analytics complete. Starting OS Build..." | tee -a /build/linting_logs/master_summary.log
+
+cd /build/jules-os
 echo 'Building ISO...'
 if ! bash scripts/build.sh; then
     echo 'CRITICAL ERROR: Build failed. Initiating Deep Diagnostics...'
@@ -105,6 +139,13 @@ if ($LASTEXITCODE -ne 0) {
     Write-Error "Test failed. Deep diagnostics securely saved to JulesOS_CrashLogs.zip"
     exit 1
 }
+
+Write-Host "-> Build and Tests passed! Extracting Analytics..." -ForegroundColor DarkGray
+docker cp "${containerId}:/build/linting_logs" ".\"
+if (Test-Path ".\JulesOS_Analytics.zip") { Remove-Item ".\JulesOS_Analytics.zip" }
+Compress-Archive -Path ".\linting_logs\*" -DestinationPath ".\JulesOS_Analytics.zip" -Force
+Remove-Item -Recurse -Force ".\linting_logs"
+Write-Host "`n[SUCCESS] Jules OS built successfully! Analytics securely saved to JulesOS_Analytics.zip." -ForegroundColor Green
 
 # 4. Extract Artifacts (ISO & Linting Logs)
 Write-Host "`n[3/4] Extracting generated ISO to Windows Host..." -ForegroundColor Green

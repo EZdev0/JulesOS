@@ -37,7 +37,7 @@ echo "  4) Generate GitHub Issue Payload (Requires internet & manual submission)
 echo ""
 
 while true; option=""; do
-    read -p "Select an option [1-4]: " option
+    read -r -p "Select an option [1-4]: " option
     case $option in
         1)
             echo -e "${GREEN}Attempting to restart shell...${NC}"
@@ -64,7 +64,7 @@ while true; option=""; do
             echo "  -H 'Authorization: Bearer YOUR_TOKEN_HERE' \\"
             echo "  -H 'X-GitHub-Api-Version: 2022-11-28' \\"
             echo "  https://api.github.com/repos/JONIMONI09/JulesOS/issues \\"
-            echo "  -d '{\"title\":\"Automated Crash Report (PID 1)\",\"body\":\"\`\`\`\n$(cat "$CRASH_FILE" | tr '\n' ' ' | sed 's/"/\\"/g')\n\`\`\`\",\"labels\":[\"bug\"]}'${NC}"
+            printf "  -d '{\"title\":\"Automated Crash Report (PID 1)\",\"body\":\"\`\`\`\\n%s\\n\`\`\`\",\"labels\":[\"bug\"]}'${NC}\n" "$(tr '\n' ' ' < "$CRASH_FILE" | sed 's/"/\\"/g')"
             echo ""
             echo "Press ENTER to return."
             read -r

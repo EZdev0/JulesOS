@@ -15,7 +15,7 @@ pub fn get_kernel_release() -> String {
     )
 }
 
-/// Parse /proc/meminfo into a HashMap of key → value (in bytes).
+/// Parse /proc/meminfo into a `HashMap` of key → value (in bytes).
 ///
 /// Values in /proc/meminfo are in kB, so we multiply by 1024.
 pub fn get_mem_info() -> HashMap<String, u64> {
@@ -51,7 +51,7 @@ pub fn get_mem_info() -> HashMap<String, u64> {
 
 /// Get disk usage information for a given path.
 ///
-/// Returns (total, used, available, usage_percent) in bytes.
+/// Returns (total, used, available, `usage_percent`) in bytes.
 pub fn get_disk_usage(path: &str) -> Option<(u64, u64, u64, f64)> {
     let Ok(stat) = nix::sys::statvfs::statvfs(path) else { return None };
 

@@ -306,6 +306,27 @@ jobs:
           shellcheck -x jules-os/scripts/*.sh || true
           echo "✅ Shell script analysis complete"
 
+      - name: 🐍 Python Security & Linting (flake8, bandit)
+        run: |
+          echo "════════════════════════════════════════"
+          echo "🐍 PYTHON ANALYSIS (Soft Mode)"
+          echo "════════════════════════════════════════"
+          sudo apt-get update -qq && sudo apt-get install -y -qq python3-pip
+          pip3 install --break-system-packages flake8 bandit
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "Running Flake8..."
+          flake8 jules-os/tests/ || true
+          echo "Running Bandit..."
+          bandit -r jules-os/tests/ -ll -ii || true
+
+      - name: 🛡️ Trivy OS Vulnerability Scan
+        run: |
+          echo "════════════════════════════════════════"
+          echo "🛡️ TRIVY VULNERABILITY SCANNER"
+          echo "════════════════════════════════════════"
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+          trivy fs jules-os/ --exit-code 0 --severity HIGH,CRITICAL --no-progress || true
+
   # ══════════════════════════════════════════════════════════════
   # ISO BUILD JOB: Generate Bootable ISO
   # ══════════════════════════════════════════════════════════════

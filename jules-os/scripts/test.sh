@@ -9,7 +9,7 @@ cd jules-os
 mkdir -p build_unit_tests
 cd build_unit_tests
 cmake -DBUILD_TESTING=ON -DSTATIC_BUILD=OFF ..
-make -j$(nproc) jules_tests
+make -j"$(nproc)" jules_tests
 ./jules_tests
 echo "[OK] Unit tests passed."
 cd ..
@@ -19,7 +19,7 @@ echo "[+] Testing Shell Compilation..."
 mkdir -p build_test
 cd build_test
 cmake -DSTATIC_BUILD=OFF ..
-make -j$(nproc)
+make -j"$(nproc)"
 echo "[OK] Shell compiled successfully."
 
 # 2. Test Shell command execution (dry run)

@@ -51,7 +51,7 @@ fn install_signal_handlers() {
             loop {
                 match nix::sys::wait::waitpid(None, Some(nix::sys::wait::WaitPidFlag::WNOHANG)) {
                     Ok(nix::sys::wait::WaitStatus::StillAlive) | Err(_) => break,
-                    Ok(_) => continue, // Reaped a zombie, check for more
+                    Ok(_) => (), // Reaped a zombie, check for more
                 }
             }
         })
