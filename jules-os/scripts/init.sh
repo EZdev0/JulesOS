@@ -340,5 +340,17 @@ echo "  Network: $([ -n "$NET_IF" ] && echo "$NET_IF" || echo "none")"
 echo "════════════════════════════════════════════════════════"
 echo ""
 
-echo "[ OK ] Handing over control to Jules Shell (Rust Core)..."
-exec /bin/jules_shell
+if [ -x /bin/jules_shell ]; then
+    echo "[ OK ] Handing over control to Jules Shell (Rust Core)..."
+    exec /bin/jules_shell
+else
+    # Crashscreen & Notfall-Shell (Abwehr von Kernel Panic)
+    clear
+    printf "\033[1;41m\033[1;37m                                                               \033[0m\n"
+    printf "\033[1;41m\033[1;37m  [FATAL ERROR] KERNEL PANIC PREVENTED                         \033[0m\n"
+    printf "\033[1;41m\033[1;37m  /bin/jules_shell (PID 1) is missing or corrupted!            \033[0m\n"
+    printf "\033[1;41m\033[1;37m  Exitcode 0x00007f00 (127) avoided via Fallback.              \033[0m\n"
+    printf "\033[1;41m\033[1;37m  Dropping to Emergency Recovery Shell. System remains alive.  \033[0m\n"
+    printf "\033[1;41m\033[1;37m                                                               \033[0m\n"
+    exec /bin/sh
+fi

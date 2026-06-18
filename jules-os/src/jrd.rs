@@ -4,7 +4,6 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-const CPU_LIMIT_PERCENT: f64 = 85.0; // Suspend if usage > 85%
 const CHECK_INTERVAL_SECS: u64 = 3;
 const COOLDOWN_SECS: u64 = 6; // Keep suspended for 6 seconds
 
@@ -13,9 +12,32 @@ struct ProcessStats {
     total_time: u64,
 }
 
+fn is_emulator() -> bool {
+    if let Ok(vendor) = fs::read_to_string("/sys/class/dmi/id/sys_vendor") {
+        let v = vendor.to_lowercase();
+        if v.contains("qemu") || v.contains("bochs") || v.contains("kvm") || v.contains("microsoft") {
+            return true;
+        }
+    }
+    if let Ok(product) = fs::read_to_string("/sys/class/dmi/id/product_name") {
+        let p = product.to_lowercase();
+        if p.contains("virtual") || p.contains("qemu") {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn start_daemon() {
-    println!("[JRD] JulesOS Resource Daemon initialized. Monitoring processes...");
-    thread::spawn(|| {
+    let emulator_mode = is_emulator();
+    let cpu_limit = if emulator_mode { 65.0 } else { 95.0 };
+    let env_type = if emulator_mode { "Emulator (Limbo/QEMU)" } else { "Native Hardware" };
+
+    println!("[JRD] JulesOS Resource Daemon initialized.");
+    println!("[JRD] Detected Environment: {}", env_type);
+    println!("[JRD] Dynamic Load Balancing active (CPU Limit: {}%)", cpu_limit);
+
+    thread::spawn(move || {
         let mut prev_sys_ticks: u64 = get_system_ticks();
         let mut prev_procs: HashMap<u32, ProcessStats> = HashMap::new();
         let mut suspended_pids: HashMap<u32, u64> = HashMap::new();
@@ -59,7 +81,7 @@ pub fn start_daemon() {
                             let cpu_usage =
                                 (proc_delta as f64 / sys_delta as f64) * 100.0 * num_cores;
 
-                            if cpu_usage > CPU_LIMIT_PERCENT {
+                            if cpu_usage > cpu_limit {
                                 // Freeze the process
                                 suspended_pids.entry(pid).or_insert_with(|| {
                                     println!("\n\x1b[1;33m[JRD] Heavy load detected ({}% CPU) on PID {}. Freezing to prevent lag...\x1b[0m", cpu_usage as u32, pid);

@@ -527,8 +527,8 @@ ok "Initramfs created: ${INITRD_SIZE}"
 # ── Step 7: Configure Bootloaders ─────────────────────────────
 step "Step 7/8: Configuring Bootloaders (BIOS + UEFI)"
 
-# Kernel command line (optimized for both real hardware and QEMU + Plymouth)
-KERNEL_CMDLINE="root=/dev/ram0 rw console=tty0 console=ttyS0,115200 quiet splash vt.global_cursor_default=0 loglevel=3 mitigations=off nowatchdog no_timer_check"
+# Kernel command line (Limbo Emulator Fix & Verbose Matrix Boot)
+KERNEL_CMDLINE="root=/dev/ram0 rw console=tty0 console=ttyS0,115200 nomodeset vga=791 vt.global_cursor_default=0 loglevel=3 mitigations=off nowatchdog no_timer_check"
 
 # ─── 7a. Syslinux (BIOS Boot) ───
 cat > "${ISO_DIR}/boot/syslinux/syslinux.cfg" << EOF_SYSLINUX
