@@ -283,7 +283,9 @@ if [ -n "$APK_STATIC_PKG" ]; then
             mesa-dri-gallium mesa-egl wlroots \
             font-dejavu font-terminus \
             eudev eudev-openrc seatd dbus \
-            python3 py3-gobject3 gtk+3.0 wine box64 \
+            python3 py3-gobject3 gtk+3.0 wine \
+            parted util-linux grub grub-efi efibootmgr dosfstools e2fsprogs \
+            gcc g++ make cmake rust cargo nasm \
             || warn "Some desktop packages failed to install. Continuing..."
             
         ok "Desktop & Plymouth packages installed."
@@ -316,6 +318,12 @@ ok "Init system installed to /init"
 if [ -f "${JULES_DIR}/scripts/recovery_ui.sh" ]; then
     install -m 755 "${JULES_DIR}/scripts/recovery_ui.sh" "${ROOTFS_DIR}/bin/recovery_ui.sh"
     ok "Recovery UI installed to /bin/recovery_ui.sh"
+fi
+
+# Install OS Installer
+if [ -f "${JULES_DIR}/scripts/installer.sh" ]; then
+    install -m 755 "${JULES_DIR}/scripts/installer.sh" "${ROOTFS_DIR}/usr/bin/jules-installer"
+    ok "OS Installer installed to /usr/bin/jules-installer"
 fi
 
 # Create essential directory structure (FHS-compliant)
@@ -423,13 +431,7 @@ EOF_WAYBAR
 cp -r "${ROOTFS_DIR}/etc/skel/.config/"* "${ROOTFS_DIR}/home/jules/.config/" 2>/dev/null || true
 chown -R 1000:1000 "${ROOTFS_DIR}/home/jules/.config" 2>/dev/null || true
 
-  ╔═══════════════════════════════════════════════════╗
-  ║            Welcome to Jules OS v1.0.0             ║
-  ║   The Immutable, High-Performance OS              ║
-  ║   Type 'help' for available commands              ║
-  ╚═══════════════════════════════════════════════════╝
 
-EOF_MOTD
 
 # Create /etc/inittab for getty fallback (BusyBox init compatible)
 cat > "${ROOTFS_DIR}/etc/inittab" << 'EOF_INITTAB'
