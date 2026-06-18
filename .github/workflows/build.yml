@@ -50,21 +50,34 @@ jobs:
           cargo --version
           rustup show
 
-      - name: 🔍 Lint (clippy)
+      - name: 📐 Auto-Format Code
         working-directory: ./jules-os
         run: |
           echo "════════════════════════════════════════"
-          echo "🔍 Running Clippy (Rust Linter)"
+          echo "📐 Auto-Formatting Code"
+          echo "════════════════════════════════════════"
+          cargo fmt
+
+      - name: 🔍 Auto-Fix Linter Issues
+        working-directory: ./jules-os
+        run: |
+          echo "════════════════════════════════════════"
+          echo "🔍 Running Smart Clippy Auto-Fixer"
+          echo "════════════════════════════════════════"
+          cargo clippy --fix --allow-dirty --allow-no-vcs --all-targets
+
+      - name: 💾 Commit Auto-Fixes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🤖 Auto-fix: Formatting and Linter rules applied"
+
+      - name: 🛑 Strict Linter Check
+        working-directory: ./jules-os
+        run: |
+          echo "════════════════════════════════════════"
+          echo "🛑 Checking for unfixable severe errors"
           echo "════════════════════════════════════════"
           cargo clippy --all-targets -- -D warnings
-
-      - name: 📐 Format Check
-        working-directory: ./jules-os
-        run: |
-          echo "════════════════════════════════════════"
-          echo "📐 Formatting Code"
-          echo "════════════════════════════════════════"
-          cargo fmt || true
 
       - name: 🏗️ Build (Static musl Binary)
         working-directory: ./jules-os
