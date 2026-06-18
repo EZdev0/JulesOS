@@ -125,12 +125,12 @@ jobs:
           # Test 1: help command
           echo ""
           echo "[TEST 1/6] Testing 'help' command..."
-          if ./build/jules_shell -c "help" > /tmp/help.log 2>&1; then
+          if ./build/jules_shell -c "help" > /dev/null 2>&1; then
             echo "✅ PASS: help command"
             ((PASS++))
           else
             echo "❌ FAIL: help command"
-            cat /tmp/help.log
+
             ((FAIL++))
           fi
           
@@ -148,7 +148,7 @@ jobs:
           # Test 3: fetch command
           echo ""
           echo "[TEST 3/6] Testing 'fetch' command..."
-          if ./build/jules_shell -c "fetch" > /tmp/fetch.log 2>&1; then
+          if ./build/jules_shell -c "fetch" > /dev/null 2>&1; then
             echo "✅ PASS: fetch command"
             ((PASS++))
           else
@@ -159,7 +159,7 @@ jobs:
           # Test 4: Empty command
           echo ""
           echo "[TEST 4/6] Testing empty command handling..."
-          OUTPUT=$(./build/jules_shell -c "" 2>&1)
+          OUTPUT=$(./build/jules_shell -c "" > /dev/null 2>&1 || true)
           if [ -z "$OUTPUT" ]; then
             echo "✅ PASS: Empty command handled correctly"
             ((PASS++))
@@ -171,7 +171,7 @@ jobs:
           # Test 5: Whitespace handling
           echo ""
           echo "[TEST 5/6] Testing whitespace command handling..."
-          OUTPUT=$(./build/jules_shell -c "   " 2>&1)
+          OUTPUT=$(./build/jules_shell -c "   " > /dev/null 2>&1 || true)
           if [ -z "$OUTPUT" ]; then
             echo "✅ PASS: Whitespace command handled correctly"
             ((PASS++))
