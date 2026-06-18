@@ -58,7 +58,7 @@ jobs:
           echo "================================================"
           mkdir -p build
           cd build
-          cmake -DSTATIC_BUILD=ON .. || (echo "CMake configuration failed"; exit 1)
+          cmake -DSTATIC_BUILD=OFF .. || (echo "CMake configuration failed"; exit 1)
           make -j$(nproc) || (echo "Compilation failed"; exit 1)
           echo ""
           echo "✅ Jules Shell compiled successfully"
@@ -118,6 +118,9 @@ jobs:
           echo "🧪 COMPONENT TESTS"
           echo "================================================"
           chmod +x build/jules_shell
+          ls -la build/jules_shell
+          ldd build/jules_shell || true
+          ./build/jules_shell -c "help" || echo "Help failed"
           
           PASS=0
           FAIL=0
@@ -125,12 +128,12 @@ jobs:
           # Test 1: help command
           echo ""
           echo "[TEST 1/6] Testing 'help' command..."
-          if ./build/jules_shell -c "help" > /dev/null 2>&1; then
+          if ./build/jules_shell -c "help" > /tmp/help.log 2>&1; then
             echo "✅ PASS: help command"
             ((PASS++))
           else
             echo "❌ FAIL: help command"
-
+            cat /tmp/help.log
             ((FAIL++))
           fi
           
@@ -183,7 +186,7 @@ jobs:
           # Test 6: Exit code
           echo ""
           echo "[TEST 6/6] Testing exit code..."
-          if ./build/jules_shell -c "help" > /dev/null 2>&1; then
+          if ./build/jules_shell -c "help" > /tmp/help.log 2>&1; then
             echo "✅ PASS: Exit code 0"
             ((PASS++))
           else
@@ -350,7 +353,11 @@ jobs:
           echo "🏗️  BUILDING ISO IMAGE"
           echo "================================================"
           
-          chmod +x build/jules_shell scripts/*.sh
+          chmod +x build/jules_shell
+          ls -la build/jules_shell
+          ldd build/jules_shell || true
+          ./build/jules_shell -c "help" || echo "Help failed"
+          chmod +x scripts/*.sh
           
           echo ""
           echo "Pre-build checks:"
