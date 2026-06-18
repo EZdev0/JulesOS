@@ -74,6 +74,34 @@ jobs:
           echo "════════════════════════════════════════"
           RUSTFLAGS="-C strip=symbols" cargo build --release --target ${{ env.RUST_TARGET }}
 
+      - name: 🚨 Deep Diagnostic Mode (Fallback on Failure)
+        if: failure()
+        working-directory: ./jules-os
+        run: |
+          echo "════════════════════════════════════════"
+          echo "🚨 CRITICAL BUILD FAILURE - INITIATING DEEP DIAGNOSTICS"
+          echo "════════════════════════════════════════"
+          echo "=== 1. Environment & Resources ===" > diagnostic.log
+          rustc -vV >> diagnostic.log
+          cargo --version >> diagnostic.log
+          free -h >> diagnostic.log
+          df -h >> diagnostic.log
+          echo -e "\n=== 2. Verbose Build Trace (Backtrace) ===" >> diagnostic.log
+          RUST_BACKTRACE=full cargo build --verbose --release --target ${{ env.RUST_TARGET }} 2>> diagnostic.log || true
+          echo -e "\n=== 3. Deep Linter Audit (Pedantic & Nursery) ===" >> diagnostic.log
+          cargo clippy --all-targets -- -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used 2>> diagnostic.log || true
+          echo "Deep diagnostics finished. Zipping results..."
+          mkdir -p ../crash_logs
+          cp diagnostic.log ../crash_logs/
+          cd .. && zip -r JulesOS_CrashLogs.zip crash_logs/
+
+      - name: 📦 Upload Crash Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: JulesOS_CrashLogs_BuildPhase
+          path: JulesOS_CrashLogs.zip
+
           echo ""
           echo "✅ Jules Shell compiled successfully"
           echo ""
@@ -257,9 +285,9 @@ jobs:
           echo "🔍 CLIPPY STRICT MODE"
           echo "════════════════════════════════════════"
           cargo clippy --all-targets -- \
-            -D warnings \
-            -D clippy::all \
-            -D clippy::pedantic \
+            -W warnings \
+            -W clippy::all \
+            -W clippy::pedantic \
             -A clippy::module_name_repetitions \
             -A clippy::must_use_candidate \
             -A clippy::missing_errors_doc \

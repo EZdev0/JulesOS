@@ -56,18 +56,53 @@ if ($LASTEXITCODE -ne 0) {
 # 3. Build & Test ISO im isolierten Container (OHNE Volumes)
 Write-Host "`n[2/4] Running Linting Tools and Building JulesOS ISO in absolute isolation..." -ForegroundColor Green
 $containerId = "jules-test-container"
-docker create --name $containerId jules-builder bash -c "mkdir -p /build/linting_logs && echo 'Running Shellcheck...' && shellcheck jules-os/scripts/*.sh > /build/linting_logs/shellcheck.log || true && echo 'Running Cppcheck...' && cppcheck --enable=all jules-os/src/legacy/ > /build/linting_logs/cppcheck.log 2>&1 || true && echo 'Running Cargo Clippy...' && cd /build/jules-os && cargo clippy --all-targets > /build/linting_logs/clippy.log 2>&1 || true && echo 'Building ISO...' && bash scripts/build.sh && echo 'Verifying Native Compilers in JulesOS RootFS...' && chroot build/rootfs /usr/bin/gcc --version && chroot build/rootfs /usr/bin/cargo --version && python3 tests/qemu_boot_test.py" > $null
+
+$containerScript = @"
+mkdir -p /build/linting_logs
+echo 'Running Shellcheck...'
+shellcheck jules-os/scripts/*.sh > /build/linting_logs/shellcheck.log || true
+echo 'Running Cppcheck...'
+cppcheck --enable=all jules-os/src/legacy/ > /build/linting_logs/cppcheck.log 2>&1 || true
+echo 'Running Cargo Clippy (Soft Mode)...'
+cd /build/jules-os
+cargo clippy --all-targets > /build/linting_logs/clippy.log 2>&1 || true
+
+echo 'Building ISO...'
+if ! bash scripts/build.sh; then
+    echo 'CRITICAL ERROR: Build failed. Initiating Deep Diagnostics...'
+    echo '=== 1. Environment ===' > /build/linting_logs/diagnostic.log
+    rustc -vV >> /build/linting_logs/diagnostic.log
+    cargo --version >> /build/linting_logs/diagnostic.log
+    echo -e '\n=== 2. Verbose Build Trace ===' >> /build/linting_logs/diagnostic.log
+    RUST_BACKTRACE=full cargo build --verbose --release --target x86_64-unknown-linux-musl 2>> /build/linting_logs/diagnostic.log || true
+    echo -e '\n=== 3. Deep Linter Audit ===' >> /build/linting_logs/diagnostic.log
+    cargo clippy --all-targets -- -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used 2>> /build/linting_logs/diagnostic.log || true
+    exit 1
+fi
+
+echo 'Verifying Native Compilers in JulesOS RootFS...'
+chroot build/rootfs /usr/bin/gcc --version
+chroot build/rootfs /usr/bin/cargo --version
+
+if ! python3 tests/qemu_boot_test.py; then
+    echo 'CRITICAL ERROR: QEMU Boot Test failed.'
+    echo '=== QEMU Boot Test Failed ===' > /build/linting_logs/diagnostic.log
+    exit 1
+fi
+"@
+
+docker create --name $containerId jules-builder bash -c $containerScript > $null
 
 Write-Host "-> Running container processes..." -ForegroundColor DarkGray
 docker start -a $containerId
 if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Build or QEMU Boot Test failed inside the container! Extracting logs only..."
+    Write-Warning "Build or QEMU Boot Test failed inside the container! Extracting Deep Diagnostic logs..."
     docker cp "${containerId}:/build/linting_logs" ".\"
     if (Test-Path ".\JulesOS_CrashLogs.zip") { Remove-Item ".\JulesOS_CrashLogs.zip" }
     Compress-Archive -Path ".\linting_logs\*" -DestinationPath ".\JulesOS_CrashLogs.zip" -Force
     Remove-Item -Recurse -Force ".\linting_logs"
     docker rm -f $containerId > $null
-    Write-Error "Test failed. Logs securely saved to JulesOS_CrashLogs.zip"
+    Write-Error "Test failed. Deep diagnostics securely saved to JulesOS_CrashLogs.zip"
     exit 1
 }
 
