@@ -29,6 +29,7 @@ mod commands;
 mod jrd;
 mod system;
 mod watchdog;
+mod splash;
 
 use colors::{CYAN, BOLD, RESET, MAGENTA, YELLOW, GREEN, BLUE};
 use std::io::{self, BufRead, Write};
@@ -182,6 +183,9 @@ fn main() {
 
     // Mode 4: Auto Desktop (Fallback to REPL if it fails)
     if args.contains(&"--auto-desktop".to_string()) {
+        commands::run_clear();
+        splash::run_splash();
+        
         println!("{YELLOW}[PID 1] Attempting Auto-Boot into Wayland Desktop...{RESET}");
         commands::run_desktop();
         println!("{YELLOW}[PID 1] Desktop session ended. Falling back to recovery shell...{RESET}");
@@ -189,6 +193,7 @@ fn main() {
 
     // Mode 3: Interactive shell (REPL)
     commands::run_clear();
+    splash::run_splash();
     print_banner();
 
     let stdin = io::stdin();
