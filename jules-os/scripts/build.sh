@@ -51,7 +51,7 @@ else
     STATIC_OPT="-DSTATIC_BUILD=OFF"
 fi
 cmake ${STATIC_OPT} ..
-make -j$(nproc)
+make -j"$(nproc)"
 cd "${JULES_DIR}"
 
 # 2. Download Alpine Minirootfs
@@ -146,7 +146,7 @@ EOF_RUNNER
 else
     if command -v xorriso >/dev/null 2>&1; then
     SYSLINUX_DIR=""
-    for d in /usr/lib/syslinux/modules/bios /usr/share/syslinux /usr/lib/ISOLINUX /usr/lib/syslinux/bios; do
+    for d in /usr/lib/syslinux/modules/bios /usr/share/syslinux /usr/lib/ISOLINUX /usr/lib/syslinux/bios /usr/lib/syslinux/modules/bios; do
         if [ -f "$d/isolinux.bin" ]; then
             SYSLINUX_DIR="$d"
             break
@@ -155,14 +155,54 @@ else
 
     if [ -n "$SYSLINUX_DIR" ]; then
         cp "$SYSLINUX_DIR/isolinux.bin" "${ISO_DIR}/boot/syslinux/"
-        [ -f "$SYSLINUX_DIR/ldlinux.c32" ] && cp "$SYSLINUX_DIR/ldlinux.c32" "${ISO_DIR}/boot/syslinux/"
 
-        xorriso -as mkisofs -o JulesOS.iso \
-          -b boot/syslinux/isolinux.bin \
-          -c boot/syslinux/boot.cat \
-          -no-emul-boot -boot-load-size 4 -boot-info-table \
-          -R -J -v -T "${ISO_DIR}" >/dev/null 2>&1
+        # Make sure to copy ALL necessary syslinux module files.
+        MODULES_DIR=""
+        for d in /usr/lib/syslinux/modules/bios /usr/share/syslinux /usr/lib/syslinux/bios; do
+            if [ -f "$d/ldlinux.c32" ]; then
+                MODULES_DIR="$d"
+                break
+            fi
+        done
+
+        if [ -n "$MODULES_DIR" ]; then
+            cp "$MODULES_DIR/ldlinux.c32" "${ISO_DIR}/boot/syslinux/"
+            [ -f "$MODULES_DIR/libutil.c32" ] && cp "$MODULES_DIR/libutil.c32" "${ISO_DIR}/boot/syslinux/"
+            [ -f "$MODULES_DIR/menu.c32" ] && cp "$MODULES_DIR/menu.c32" "${ISO_DIR}/boot/syslinux/"
+            [ -f "$MODULES_DIR/libcom32.c32" ] && cp "$MODULES_DIR/libcom32.c32" "${ISO_DIR}/boot/syslinux/"
+        fi
+
+        # also create boot.cat in syslinux directory
+        touch "${ISO_DIR}/boot/syslinux/boot.cat"
+
+
+        ISOHDPFX=""
+        for d in /usr/lib/syslinux/mbr /usr/share/syslinux /usr/lib/ISOLINUX; do
+            if [ -f "$d/isohdpfx.bin" ]; then
+                ISOHDPFX="$d/isohdpfx.bin"
+                break
+            fi
+        done
+
+        if [ -n "$ISOHDPFX" ]; then
+            xorriso -as mkisofs -o JulesOS.iso \
+              -b boot/syslinux/isolinux.bin \
+              -c boot/syslinux/boot.cat \
+              -no-emul-boot -boot-load-size 4 -boot-info-table \
+              -isohybrid-mbr "$ISOHDPFX" -partition_offset 16 \
+              -R -J -v -T "${ISO_DIR}" >/dev/null 2>&1
+        else
+            echo "[i] isohdpfx.bin not found. Building without isohybrid-mbr."
+            xorriso -as mkisofs -o JulesOS.iso \
+              -b boot/syslinux/isolinux.bin \
+              -c boot/syslinux/boot.cat \
+              -no-emul-boot -boot-load-size 4 -boot-info-table \
+              -R -J -v -T "${ISO_DIR}" >/dev/null 2>&1
+        fi
+
         echo "[SUCCESS] JulesOS.iso created."
+
+
     else
         xorriso -as mkisofs -o JulesOS.iso -R -J "${ISO_DIR}" >/dev/null 2>&1
         echo "[i] Created non-bootable ISO (missing isolinux.bin)."

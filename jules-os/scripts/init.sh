@@ -62,12 +62,14 @@ fi
 
 mkdir -p /home/jules
 if [ ! -f /home/jules/.profile ]; then
-    echo "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" > /home/jules/.profile
-    echo "export HOME=/home/jules" >> /home/jules/.profile
-    echo "alias ls='ls --color=auto'" >> /home/jules/.profile
-    echo "alias ll='ls -lah --color=auto'" >> /home/jules/.profile
-    echo "alias grep='grep --color=auto'" >> /home/jules/.profile
-    echo "PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '" >> /home/jules/.profile
+    {
+        echo "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        echo "export HOME=/home/jules"
+        echo "alias ls='ls --color=auto'"
+        echo "alias ll='ls -lah --color=auto'"
+        echo "alias grep='grep --color=auto'"
+        printf "PS1='%s'\\n" "\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ "
+    } > /home/jules/.profile
 fi
 
 # Ensure correct ownership and secure permissions
@@ -77,7 +79,7 @@ chmod 700 /home/jules
 
 export HOME=/home/jules
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-cd /home/jules
+cd /home/jules || exit
 
 # Apply performance tuning
 echo "[ OK ] Applying Jules OS Tuning (CachyOS Inspired)..."

@@ -1,0 +1,92 @@
+Checking jules-os/src/commands.cpp ...
+jules-os/src/commands.cpp:1:0: information: Include file: <cctype> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <cctype>
+^
+jules-os/src/commands.cpp:2:0: information: Include file: <vector> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <vector>
+^
+jules-os/src/commands.h:4:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+jules-os/src/commands.cpp:4:0: information: Include file: <iostream> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <iostream>
+^
+jules-os/src/commands.cpp:5:0: information: Include file: <fstream> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <fstream>
+^
+jules-os/src/commands.cpp:6:0: information: Include file: <cstdlib> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <cstdlib>
+^
+jules-os/src/commands.cpp:7:0: information: Include file: <unistd.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <unistd.h>
+^
+jules-os/src/commands.cpp:8:0: information: Include file: <sys/wait.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sys/wait.h>
+^
+jules-os/src/commands.cpp:9:0: information: Include file: <sys/utsname.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sys/utsname.h>
+^
+jules-os/src/commands.cpp:10:0: information: Include file: <sys/sysinfo.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sys/sysinfo.h>
+^
+jules-os/src/commands.cpp:11:0: information: Include file: <sys/statvfs.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sys/statvfs.h>
+^
+jules-os/src/commands.cpp:12:0: information: Include file: <glob.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <glob.h>
+^
+jules-os/src/commands.cpp:13:0: information: Include file: <cmath> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <cmath>
+^
+jules-os/src/commands.cpp:14:0: information: Include file: <cstring> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <cstring>
+^
+jules-os/src/commands.cpp:15:0: information: Include file: <sstream> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sstream>
+^
+jules-os/src/commands.cpp:16:0: information: Include file: <iomanip> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <iomanip>
+^
+jules-os/src/commands.cpp:17:0: information: Include file: <map> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <map>
+^
+jules-os/src/commands.cpp:18:0: information: Include file: <sstream> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sstream>
+^
+jules-os/src/commands.cpp:19:0: information: Include file: <cmath> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <cmath>
+^
+jules-os/src/commands.cpp:20:0: information: Include file: <glob.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <glob.h>
+^
+jules-os/src/commands.cpp:21:0: information: Include file: <sys/statvfs.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sys/statvfs.h>
+^
+jules-os/src/commands.cpp:353:35: style: Consider using std::transform algorithm instead of a raw loop. [useStlAlgorithm]
+    for (auto& arg : args) c_args.push_back(&arg[0]);
+                                  ^
+1/2 files checked 85% done
+Checking jules-os/src/shell.cpp ...
+jules-os/src/shell.cpp:2:0: information: Include file: <iostream> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <iostream>
+^
+jules-os/src/shell.cpp:3:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+jules-os/src/shell.cpp:4:0: information: Include file: <unistd.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <unistd.h>
+^
+jules-os/src/shell.cpp:5:0: information: Include file: <cstdlib> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <cstdlib>
+^
+jules-os/src/shell.cpp:6:0: information: Include file: <vector> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <vector>
+^
+jules-os/src/shell.cpp:7:0: information: Include file: <cstring> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <cstring>
+^
+jules-os/src/shell.cpp:46:26: style: Parameter 'argv' can be declared as const array [constParameter]
+int main(int argc, char* argv[]) {
+                         ^
+2/2 files checked 100% done
+nofile:0:0: information: Active checkers: 172/592 (use --checkers-report=<filename> to see details) [checkersReport]
