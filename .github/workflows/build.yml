@@ -14,7 +14,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   RUST_TARGET: x86_64-unknown-linux-musl
@@ -27,6 +31,7 @@ jobs:
   build:
     name: Build Jules Shell (Rust)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: 📥 Checkout Repository
@@ -138,6 +143,7 @@ jobs:
   test:
     name: Unit & Component Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: 📥 Checkout Repository
@@ -266,6 +272,7 @@ jobs:
   security:
     name: Security Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: 📥 Checkout Repository
@@ -347,6 +354,7 @@ jobs:
     name: Build ISO Image
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: 📥 Checkout Repository
@@ -457,6 +465,7 @@ jobs:
     name: OS Image Analysis
     needs: iso
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: 📥 Download ISO Artifact
@@ -517,6 +526,7 @@ jobs:
     name: Build Summary
     needs: [ build, test, security, iso, iso-analysis ]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: always()
 
     steps:
@@ -560,6 +570,9 @@ jobs:
     name: Generate Release
     needs: [ build, test, security, iso, iso-analysis, summary ]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
     if: success() && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     
     steps:
