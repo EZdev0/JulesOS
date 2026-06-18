@@ -5,7 +5,7 @@
 # It sets up the immutable OverlayFS, loads drivers, configures
 # networking, and hands control to the Jules Shell.
 
-set -e
+set +e # STRICT INSTRUCTION: Never use set -e in an init script, it causes Kernel Panics!
 
 # ══════════════════════════════════════════════════════════════
 # 1. CORE FILESYSTEM SETUP

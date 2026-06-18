@@ -153,24 +153,25 @@ fn main() {
         // Check if shutdown was requested (by signal handler)
         if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
             println!(
-                "\n{YELLOW}[PID 1] Received shutdown signal. Shutting down gracefully...{RESET}"
+                "\n{YELLOW}[PID 1] Received shutdown signal. Halting gracefully...{RESET}"
             );
-            break;
+            loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
         }
 
         // Print prompt
         print!("{}", get_prompt());
         if io::stdout().flush().is_err() {
-            break;
+            println!("\n[PID 1] stdout flush error. Idling...");
+            loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
         }
 
         // Read input
         input.clear();
         match reader.read_line(&mut input) {
             Ok(0) => {
-                // EOF (Ctrl+D)
-                println!("\nLogging out of Jules OS...");
-                break;
+                // EOF (Ctrl+D) or headless mode without a TTY
+                println!("\n[PID 1] Shell input closed. Idling to prevent Kernel Panic...");
+                loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
             }
             Ok(_) => {
                 let trimmed = input.trim();
@@ -178,12 +179,14 @@ fn main() {
                     continue;
                 }
                 if trimmed == "exit" {
-                    break;
+                    println!("\n[PID 1] Halting system...");
+                    loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
                 }
                 commands::execute_command(trimmed);
             }
             Err(_) => {
-                break;
+                println!("\n[PID 1] Stdin error. Idling...");
+                loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
             }
         }
     }
