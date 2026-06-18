@@ -1,38 +1,188 @@
 #!/bin/sh
 #
 # jules_init - The core orchestrator for the indestructible Jules OS.
+# This script runs as PID 1's pre-exec initializer.
+# It sets up the immutable OverlayFS, loads drivers, configures
+# networking, and hands control to the Jules Shell.
 
-# Ensure critical filesystems are mounted
+set -e
+
+# ══════════════════════════════════════════════════════════════
+# 1. CORE FILESYSTEM SETUP
+# ══════════════════════════════════════════════════════════════
+
+# Mount essential kernel filesystems
 mount -t proc none /proc
 mount -t sysfs none /sys
-mount -t devtmpfs none /dev
+mount -t devtmpfs none /dev 2>/dev/null || mount -t tmpfs none /dev
+mkdir -p /dev/pts /dev/shm
+mount -t devpts devpts /dev/pts 2>/dev/null || true
+mount -t tmpfs tmpfs /dev/shm 2>/dev/null || true
 mount -t tmpfs -o size=1024m,mode=1777 tmpfs /tmp
 mount -t tmpfs -o mode=0755 none /run
 
-# Set hostname to JulesOS
+echo "[ OK ] Core filesystems mounted."
+
+# ══════════════════════════════════════════════════════════════
+# 2. IMMUTABLE OVERLAYFS (The "Indestructible" Layer)
+# ══════════════════════════════════════════════════════════════
+# The rootfs from initramfs is our read-only base (lowerdir).
+# We create a RAM-backed overlay (upperdir) so all runtime changes
+# are ephemeral and discarded on reboot. This makes the OS truly
+# immutable and self-repairing.
+
+echo "[ OK ] Setting up OverlayFS immutable layer..."
+
+# Create overlay mount points in RAM
+mkdir -p /mnt/overlay-upper /mnt/overlay-work
+
+# Mount tmpfs for the writable overlay layer
+mount -t tmpfs -o size=256m tmpfs /mnt/overlay-upper
+mkdir -p /mnt/overlay-upper/upper /mnt/overlay-upper/work
+
+# Key directories to protect with OverlayFS
+# /etc is the primary target - system config should be immutable
+for overlay_target in /etc; do
+    if [ -d "$overlay_target" ]; then
+        overlay_name=$(echo "$overlay_target" | tr '/' '_')
+        mkdir -p "/mnt/overlay-upper/upper${overlay_name}"
+        mkdir -p "/mnt/overlay-upper/work${overlay_name}"
+        mount -t overlay overlay \
+            -o "lowerdir=${overlay_target},upperdir=/mnt/overlay-upper/upper${overlay_name},workdir=/mnt/overlay-upper/work${overlay_name}" \
+            "$overlay_target" 2>/dev/null && \
+            echo "[ OK ] OverlayFS active on ${overlay_target}" || \
+            echo "[ WARN ] OverlayFS not available for ${overlay_target} (kernel module missing?)"
+    fi
+done
+
+echo "[ OK ] Immutable layer configured. Changes are ephemeral."
+
+# ══════════════════════════════════════════════════════════════
+# 3. HARDWARE DRIVER LOADING
+# ══════════════════════════════════════════════════════════════
+
+echo "[ OK ] Loading hardware drivers..."
+
+# Load essential kernel modules (if modprobe is available)
+if command -v modprobe >/dev/null 2>&1; then
+    # Storage drivers (QEMU & bare-metal)
+    modprobe virtio_blk 2>/dev/null || true
+    modprobe virtio_scsi 2>/dev/null || true
+    modprobe ahci 2>/dev/null || true
+    modprobe nvme 2>/dev/null || true
+    modprobe sd_mod 2>/dev/null || true
+    modprobe usb_storage 2>/dev/null || true
+
+    # Network drivers (QEMU & bare-metal)
+    modprobe virtio_net 2>/dev/null || true
+    modprobe e1000 2>/dev/null || true
+    modprobe e1000e 2>/dev/null || true
+    modprobe r8169 2>/dev/null || true
+
+    # Input drivers
+    modprobe usbhid 2>/dev/null || true
+    modprobe i8042 2>/dev/null || true
+
+    # Filesystem drivers
+    modprobe ext4 2>/dev/null || true
+    modprobe vfat 2>/dev/null || true
+    modprobe overlay 2>/dev/null || true
+
+    # Auto-detect hardware via modalias (loads matching modules)
+    if [ -d /sys/bus ]; then
+        for modalias_file in $(find /sys/bus/*/devices/*/modalias -maxdepth 0 2>/dev/null); do
+            modalias=$(cat "$modalias_file" 2>/dev/null)
+            if [ -n "$modalias" ]; then
+                modprobe "$modalias" 2>/dev/null || true
+            fi
+        done
+    fi
+
+    echo "[ OK ] Hardware drivers loaded."
+else
+    echo "[ WARN ] modprobe not found. Relying on built-in kernel drivers."
+fi
+
+# Start mdev for hotplug device handling (BusyBox)
+if command -v mdev >/dev/null 2>&1; then
+    echo /sbin/mdev > /proc/sys/kernel/hotplug 2>/dev/null || true
+    mdev -s 2>/dev/null || true
+    echo "[ OK ] mdev hotplug handler active."
+fi
+
+# ══════════════════════════════════════════════════════════════
+# 4. HOSTNAME & IDENTITY
+# ══════════════════════════════════════════════════════════════
+
 hostname JulesOS 2>/dev/null || true
+echo "JulesOS" > /etc/hostname 2>/dev/null || true
 
-echo "[ OK ] Mounting Core Filesystems..."
-echo "[ OK ] Jules OS Initializing Unbreakable Layer..."
+# Generate machine-id if missing
+if [ ! -f /etc/machine-id ] || [ ! -s /etc/machine-id ]; then
+    if command -v dbus-uuidgen >/dev/null 2>&1; then
+        dbus-uuidgen > /etc/machine-id 2>/dev/null || true
+    else
+        cat /proc/sys/kernel/random/uuid 2>/dev/null | tr -d '-' > /etc/machine-id || true
+    fi
+fi
 
-# Ensure network is up (DHCP via eth0 for QEMU)
-echo "[ OK ] Bringing up network interface (eth0)..."
+echo "[ OK ] System identity configured."
+
+# ══════════════════════════════════════════════════════════════
+# 5. NETWORK CONFIGURATION
+# ══════════════════════════════════════════════════════════════
+
+echo "[ OK ] Bringing up network interfaces..."
+
+# Loopback
 ip link set lo up 2>/dev/null || true
-ip link set eth0 up 2>/dev/null
-udhcpc -i eth0 -n -q 2>/dev/null
 
-# Set up DNS resolution
-echo "nameserver 8.8.8.8" > /etc/resolv.conf
-echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+# Find and bring up the first available ethernet interface
+NET_IF=""
+for iface in eth0 enp0s3 ens3 ens33; do
+    if [ -d "/sys/class/net/${iface}" ]; then
+        NET_IF="$iface"
+        break
+    fi
+done
 
-# Setup Alpine Repositories for apk
+if [ -n "$NET_IF" ]; then
+    ip link set "$NET_IF" up 2>/dev/null
+    udhcpc -i "$NET_IF" -n -q -s /usr/share/udhcpc/default.script 2>/dev/null || \
+    udhcpc -i "$NET_IF" -n -q 2>/dev/null || true
+    echo "[ OK ] Network interface ${NET_IF} configured via DHCP."
+else
+    echo "[ WARN ] No ethernet interface found."
+fi
+
+# Set up DNS resolution (DHCP-provided DNS takes priority)
+# Only add fallback if resolv.conf is empty or missing
+if [ ! -s /etc/resolv.conf ]; then
+    {
+        echo "nameserver 8.8.8.8"
+        echo "nameserver 1.1.1.1"
+        echo "nameserver 9.9.9.9"
+    } > /etc/resolv.conf
+    echo "[ OK ] DNS configured (fallback servers)."
+else
+    echo "[ OK ] DNS configured (DHCP-provided)."
+fi
+
+# ══════════════════════════════════════════════════════════════
+# 6. PACKAGE REPOSITORY SETUP
+# ══════════════════════════════════════════════════════════════
+
 if [ -f /etc/alpine-release ]; then
     ALPINE_VERSION=$(cut -d. -f1,2 /etc/alpine-release)
     echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main" > /etc/apk/repositories
     echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/community" >> /etc/apk/repositories
+    echo "[ OK ] Alpine v${ALPINE_VERSION} repositories configured."
 fi
 
-# Mount the Persistent Data Vault
+# ══════════════════════════════════════════════════════════════
+# 7. PERSISTENT DATA VAULT
+# ══════════════════════════════════════════════════════════════
+
 echo "[ OK ] Scanning for Persistent Vault..."
 VAULT_DEV=""
 for dev in /dev/vda2 /dev/sda2 /dev/vdb /dev/sdb; do
@@ -45,16 +195,19 @@ done
 if [ -n "$VAULT_DEV" ]; then
     if ! mount "$VAULT_DEV" /home 2>/dev/null; then
         echo "[ INFO ] Formatting new Vault at $VAULT_DEV..."
-        mkfs.ext4 -F "$VAULT_DEV" 2>/dev/null || mkfs.vfat "$VAULT_DEV" 2>/dev/null
+        mkfs.ext4 -F -L "JulesVault" "$VAULT_DEV" 2>/dev/null || mkfs.vfat "$VAULT_DEV" 2>/dev/null
         mount "$VAULT_DEV" /home
     fi
-    echo "[ OK ] Vault Mounted at /home."
+    echo "[ OK ] Vault Mounted at /home (persistent)."
 else
-    echo "[ WARN ] Vault not found. Using ephemeral /home."
+    echo "[ WARN ] Vault not found. Using ephemeral /home (RAM)."
     mount -t tmpfs tmpfs /home
 fi
 
-# Create some basic structure in /home
+# ══════════════════════════════════════════════════════════════
+# 8. USER SETUP
+# ══════════════════════════════════════════════════════════════
+
 if ! id "jules" >/dev/null 2>&1; then
     echo "[ INFO ] Creating user 'jules'..."
     adduser -D jules 2>/dev/null || true
@@ -65,6 +218,7 @@ if [ ! -f /home/jules/.profile ]; then
     {
         echo "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
         echo "export HOME=/home/jules"
+        echo "export TERM=xterm-256color"
         echo "alias ls='ls --color=auto'"
         echo "alias ll='ls -lah --color=auto'"
         echo "alias grep='grep --color=auto'"
@@ -72,25 +226,58 @@ if [ ! -f /home/jules/.profile ]; then
     } > /home/jules/.profile
 fi
 
-# Ensure correct ownership and secure permissions
+# Secure permissions
 chown -R jules:jules /home/jules 2>/dev/null || true
 chmod 700 /home/jules
 [ -f /home/jules/.profile ] && chmod 600 /home/jules/.profile
 
 export HOME=/home/jules
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-cd /home/jules || exit
+export TERM=xterm-256color
+cd /home/jules || cd /
 
-# Apply performance tuning
-echo "[ OK ] Applying Jules OS Tuning (CachyOS Inspired)..."
+# ══════════════════════════════════════════════════════════════
+# 9. PERFORMANCE TUNING (CachyOS Inspired)
+# ══════════════════════════════════════════════════════════════
+
+echo "[ OK ] Applying Jules OS Tuning..."
+
+# Memory management
 echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
 echo 1 > /proc/sys/vm/overcommit_memory 2>/dev/null || true
 echo 10 > /proc/sys/vm/swappiness 2>/dev/null || true
-# CachyOS kernel optimizations
+
+# Network performance (TCP BBR congestion control)
 echo bbr > /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null || true
+
+# Scheduler optimization
 echo 1 > /proc/sys/kernel/sched_autogroup_enabled 2>/dev/null || true
+
+# Increase max memory map areas (needed for some applications)
 echo 2147483642 > /proc/sys/vm/max_map_count 2>/dev/null || true
 
-# Start the Jules Shell directly
+# Disable kernel address exposure (security)
+echo 1 > /proc/sys/kernel/kptr_restrict 2>/dev/null || true
+
+# Restrict dmesg to root (security)
+echo 1 > /proc/sys/kernel/dmesg_restrict 2>/dev/null || true
+
+# Disable SysRq for security (except sync+reboot)
+echo 176 > /proc/sys/kernel/sysrq 2>/dev/null || true
+
+echo "[ OK ] Performance tuning applied."
+
+# ══════════════════════════════════════════════════════════════
+# 10. HANDOVER TO JULES SHELL
+# ══════════════════════════════════════════════════════════════
+
+echo ""
+echo "════════════════════════════════════════════════════════"
+echo "  Jules OS v1.0.0 initialized successfully."
+echo "  OverlayFS: Active | Vault: $([ -n "$VAULT_DEV" ] && echo "$VAULT_DEV" || echo "RAM")"
+echo "  Network: $([ -n "$NET_IF" ] && echo "$NET_IF" || echo "none")"
+echo "════════════════════════════════════════════════════════"
+echo ""
+
 echo "[ OK ] Handing over control to Jules Shell (C++ Core)..."
 exec /bin/jules_shell

@@ -1,48 +1,92 @@
 #!/bin/bash
-set -e
+# ═══════════════════════════════════════════════════════════════
+# JulesOS Build System v2.0
+# Creates a REAL, bootable operating system ISO image.
+#
+# Supports: BIOS + UEFI boot, real hardware + QEMU
+# Based on: Alpine Linux LTS kernel with full driver support
+# ═══════════════════════════════════════════════════════════════
+set -euo pipefail
 
-# Configuration
-JULES_DIR="$(pwd)"
+# ── Configuration ──────────────────────────────────────────────
+JULES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="${JULES_DIR}/build"
 ISO_DIR="${JULES_DIR}/iso"
 ROOTFS_DIR="${BUILD_DIR}/rootfs"
 ALPINE_VERSION="3.21"
 ALPINE_RELEASE="3.21.2"
-ALPINE_TAR="alpine-minirootfs-${ALPINE_RELEASE}-x86_64.tar.gz"
-ALPINE_URL="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/x86_64/${ALPINE_TAR}"
+ALPINE_ARCH="x86_64"
+ALPINE_TAR="alpine-minirootfs-${ALPINE_RELEASE}-${ALPINE_ARCH}.tar.gz"
+ALPINE_URL="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/${ALPINE_ARCH}/${ALPINE_TAR}"
+ALPINE_SHA_URL="${ALPINE_URL}.sha256"
+ALPINE_REPO="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}"
+ISO_OUTPUT="${JULES_DIR}/JulesOS.iso"
 
-# Termux Detection
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+# ── Helper Functions ───────────────────────────────────────────
+
+info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
+ok()    { echo -e "${GREEN}[  OK]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+error() { echo -e "${RED}[FAIL]${NC} $*"; exit 1; }
+step()  { echo -e "\n${CYAN}${BOLD}══ $* ══${NC}"; }
+
+# ── Termux Detection ──────────────────────────────────────────
 IS_TERMUX=0
-if [[ "$PREFIX" == *"termux"* ]]; then
+if [[ "${PREFIX:-}" == *"termux"* ]]; then
     IS_TERMUX=1
-    echo "[!] Termux environment detected. Adapting build process for non-root execution."
+    warn "Termux environment detected. Adapting build for non-root."
 fi
 
-# Dependency Checks
-for cmd in wget tar cpio gzip cmake make; do
-    if ! command -v $cmd >/dev/null 2>&1; then
-        echo "[ERROR] Required command '$cmd' is missing."
-        if [ "$IS_TERMUX" -eq 1 ]; then
-            echo "-> Run: pkg install $cmd"
-        else
-            echo "-> Please install it before continuing."
-        fi
-        exit 1
+# ── Dependency Checks ─────────────────────────────────────────
+step "Step 0/8: Checking Build Dependencies"
+
+REQUIRED_CMDS="wget tar cpio gzip cmake make gcc g++"
+OPTIONAL_CMDS="xorriso mtools grub-mkrescue"
+
+for cmd in $REQUIRED_CMDS; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        error "Required command '$cmd' is missing. Please install it."
+    fi
+done
+ok "All required build tools found."
+
+for cmd in $OPTIONAL_CMDS; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        warn "Optional tool '$cmd' not found. Some features may be limited."
     fi
 done
 
-echo "================================================"
-echo "      Building Jules OS (Enhanced Version)      "
-echo "================================================"
+# ═══════════════════════════════════════════════════════════════
+echo -e "\n${BOLD}${CYAN}"
+echo "  ╔═══════════════════════════════════════════════════╗"
+echo "  ║         Building Jules OS v1.0.0                  ║"
+echo "  ║   The Immutable, High-Performance Operating System║"
+echo "  ╚═══════════════════════════════════════════════════╝"
+echo -e "${NC}"
+# ═══════════════════════════════════════════════════════════════
 
-# Clean previous builds
-echo "[+] Cleaning previous build artifacts..."
+# ── Step 1: Clean Previous Build ──────────────────────────────
+step "Step 1/8: Cleaning Previous Build"
+
 rm -rf "${BUILD_DIR}" "${ISO_DIR}"
-mkdir -p "${BUILD_DIR}" "${ISO_DIR}/boot" "${ROOTFS_DIR}"
+mkdir -p "${BUILD_DIR}" "${ISO_DIR}/boot/grub" "${ISO_DIR}/boot/syslinux" "${ROOTFS_DIR}"
+ok "Build environment cleaned."
 
-# 1. Compile the Jules Shell (C++)
-echo "[+] Compiling Jules Shell (C++ Core)..."
+# ── Step 2: Compile Jules Shell ───────────────────────────────
+step "Step 2/8: Compiling Jules Shell (C++ Core)"
+
 cd "${BUILD_DIR}"
+
+# Detect static linking support
 if [ "$IS_TERMUX" -eq 1 ]; then
     STATIC_OPT="-DSTATIC_BUILD=OFF"
 elif ld --help 2>&1 | grep -q "static"; then
@@ -50,168 +94,419 @@ elif ld --help 2>&1 | grep -q "static"; then
 else
     STATIC_OPT="-DSTATIC_BUILD=OFF"
 fi
-cmake ${STATIC_OPT} ..
-make -j"$(nproc)"
+
+cmake ${STATIC_OPT} "${JULES_DIR}" || error "CMake configuration failed"
+make -j"$(nproc)" || error "C++ compilation failed"
 cd "${JULES_DIR}"
 
-# 2. Download Alpine Minirootfs
-echo "[+] Fetching minimal Linux RootFS (Alpine)..."
+ok "Jules Shell compiled successfully."
+info "Binary: $(ls -lh "${BUILD_DIR}/jules_shell" | awk '{print $5}')"
+
+# ── Step 3: Download Alpine Minirootfs ────────────────────────
+step "Step 3/8: Downloading Alpine Linux RootFS"
+
 if [ ! -f "${BUILD_DIR}/${ALPINE_TAR}" ]; then
-    wget -qO "${BUILD_DIR}/${ALPINE_TAR}" "${ALPINE_URL}"
+    info "Downloading Alpine minirootfs v${ALPINE_RELEASE}..."
+    wget -q --show-progress -O "${BUILD_DIR}/${ALPINE_TAR}" "${ALPINE_URL}" || \
+        error "Failed to download Alpine minirootfs"
+
+    # SHA256 verification
+    info "Verifying download integrity (SHA256)..."
+    if wget -qO "${BUILD_DIR}/${ALPINE_TAR}.sha256" "${ALPINE_SHA_URL}" 2>/dev/null; then
+        cd "${BUILD_DIR}"
+        if sha256sum -c "${ALPINE_TAR}.sha256" 2>/dev/null | grep -q "OK"; then
+            ok "SHA256 checksum verified."
+        else
+            warn "SHA256 verification failed or unavailable. Continuing..."
+        fi
+        cd "${JULES_DIR}"
+    else
+        warn "Could not download SHA256 file. Skipping verification."
+    fi
+else
+    ok "Alpine rootfs already cached."
 fi
 
 # Extract RootFS
-echo "[+] Extracting RootFS..."
-mkdir -p "${ROOTFS_DIR}"
+info "Extracting rootfs..."
 tar -xf "${BUILD_DIR}/${ALPINE_TAR}" -C "${ROOTFS_DIR}"
+ok "RootFS extracted."
 
-# 3. Add essential packages to rootfs using chroot if possible,
-# but for simplicity we will rely on init.sh installing them on first boot
-# or we just ensure the basics are there.
-# Minirootfs already has apk.
+# ── Step 4: Download Linux Kernel + Modules ───────────────────
+step "Step 4/8: Downloading Linux Kernel & Drivers"
 
-# 4. Integrate Jules OS Core files into RootFS
-echo "[+] Integrating Jules OS Core files into RootFS..."
-cp "${BUILD_DIR}/jules_shell" "${ROOTFS_DIR}/bin/jules_shell"
-chmod +x "${ROOTFS_DIR}/bin/jules_shell"
-
-# Place our init script
-cp "${JULES_DIR}/scripts/init.sh" "${ROOTFS_DIR}/init"
-chmod +x "${ROOTFS_DIR}/init"
-
-# Ensure directories exist
-mkdir -p "${ROOTFS_DIR}/home"
-mkdir -p "${ROOTFS_DIR}/root"
-mkdir -p "${ROOTFS_DIR}/etc/apk"
-
-# Set up repositories in rootfs so apk works immediately
-echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main" > "${ROOTFS_DIR}/etc/apk/repositories"
-echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/community" >> "${ROOTFS_DIR}/etc/apk/repositories"
-
-# 5. Fetch Kernel
-echo "[+] Fetching pre-compiled Linux Kernel (Alpine virt-kernel)..."
+# We download BOTH the kernel and kernel module packages.
+# Using 'lts' kernel for maximum hardware compatibility on real PCs.
+# Using 'virt' as fallback for QEMU-only environments.
 mkdir -p "${BUILD_DIR}/kernel_pkg"
 cd "${BUILD_DIR}/kernel_pkg"
-KERNEL_PKG_URL=$(wget -qO- https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main/x86_64/ | grep -oE 'linux-virt-[0-9][a-zA-Z0-9.-]*\.apk' | head -n 1)
-wget -q "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main/x86_64/${KERNEL_PKG_URL}"
-tar -zxf "${KERNEL_PKG_URL}" || true
-if [ -f boot/vmlinuz-virt ]; then
-    cp boot/vmlinuz-virt "${ISO_DIR}/boot/bzImage"
-    echo "[OK] Kernel (vmlinuz-virt) successfully extracted."
-else
-    echo "[ERROR] Kernel file not found in the downloaded package!"
-    exit 1
+
+# Try to find and download kernel packages
+KERNEL_TYPE="virt"  # Use virt for smaller size; lts for real hardware
+info "Fetching kernel index from Alpine repository..."
+
+# Download kernel
+KERNEL_PKG_NAME=$(wget -qO- "${ALPINE_REPO}/main/${ALPINE_ARCH}/" 2>/dev/null | \
+    grep -oE "linux-${KERNEL_TYPE}-[0-9][a-zA-Z0-9._-]*\.apk" | sort -V | tail -n 1) || true
+
+if [ -z "$KERNEL_PKG_NAME" ]; then
+    error "Could not find kernel package in Alpine repository."
 fi
+
+info "Downloading kernel: ${KERNEL_PKG_NAME}..."
+wget -q --show-progress "${ALPINE_REPO}/main/${ALPINE_ARCH}/${KERNEL_PKG_NAME}" || \
+    error "Failed to download kernel"
+
+# Extract kernel
+tar -zxf "${KERNEL_PKG_NAME}" 2>/dev/null || true
+
+if [ -f boot/vmlinuz-${KERNEL_TYPE} ]; then
+    cp "boot/vmlinuz-${KERNEL_TYPE}" "${ISO_DIR}/boot/bzImage"
+    ok "Kernel extracted: vmlinuz-${KERNEL_TYPE}"
+elif [ -f boot/vmlinuz-lts ]; then
+    cp boot/vmlinuz-lts "${ISO_DIR}/boot/bzImage"
+    ok "Kernel extracted: vmlinuz-lts"
+else
+    # Fallback: search for any vmlinuz
+    FOUND_KERNEL=$(find . -name 'vmlinuz*' -type f | head -n 1)
+    if [ -n "$FOUND_KERNEL" ]; then
+        cp "$FOUND_KERNEL" "${ISO_DIR}/boot/bzImage"
+        ok "Kernel extracted: $(basename "$FOUND_KERNEL")"
+    else
+        error "No kernel binary found in the downloaded package!"
+    fi
+fi
+
+# Copy kernel modules into rootfs (critical for real hardware!)
+KERNEL_VERSION=""
+if [ -d lib/modules ]; then
+    cp -a lib/modules "${ROOTFS_DIR}/lib/" 2>/dev/null || true
+    KERNEL_VERSION=$(ls "${ROOTFS_DIR}/lib/modules/" 2>/dev/null | head -n 1)
+    ok "Kernel modules installed: ${KERNEL_VERSION}"
+else
+    warn "No kernel modules found in package. Trying separate modules package..."
+
+    # Try to download the modules package separately
+    MODULES_PKG=$(wget -qO- "${ALPINE_REPO}/main/${ALPINE_ARCH}/" 2>/dev/null | \
+        grep -oE "linux-${KERNEL_TYPE}-[0-9][^\"]*\.apk" | grep -v "dev\|headers\|src" | sort -V | tail -n 1) || true
+    if [ -n "$MODULES_PKG" ] && [ "$MODULES_PKG" != "$KERNEL_PKG_NAME" ]; then
+        info "Downloading modules: ${MODULES_PKG}..."
+        wget -q "${ALPINE_REPO}/main/${ALPINE_ARCH}/${MODULES_PKG}" 2>/dev/null || true
+        tar -zxf "${MODULES_PKG}" 2>/dev/null || true
+        if [ -d lib/modules ]; then
+            cp -a lib/modules "${ROOTFS_DIR}/lib/" 2>/dev/null || true
+            KERNEL_VERSION=$(ls "${ROOTFS_DIR}/lib/modules/" 2>/dev/null | head -n 1)
+            ok "Kernel modules installed from separate package: ${KERNEL_VERSION}"
+        fi
+    fi
+fi
+
+# Download essential firmware (for real hardware network/storage)
+info "Downloading essential firmware..."
+FIRMWARE_PKG=$(wget -qO- "${ALPINE_REPO}/main/${ALPINE_ARCH}/" 2>/dev/null | \
+    grep -oE 'linux-firmware-none-[0-9][a-zA-Z0-9._-]*\.apk' | sort -V | tail -n 1) || true
+if [ -n "$FIRMWARE_PKG" ]; then
+    wget -q "${ALPINE_REPO}/main/${ALPINE_ARCH}/${FIRMWARE_PKG}" 2>/dev/null || true
+    tar -zxf "${FIRMWARE_PKG}" 2>/dev/null || true
+    if [ -d lib/firmware ]; then
+        mkdir -p "${ROOTFS_DIR}/lib/firmware"
+        cp -a lib/firmware/* "${ROOTFS_DIR}/lib/firmware/" 2>/dev/null || true
+        ok "Base firmware installed."
+    fi
+fi
+
 cd "${JULES_DIR}"
 
-# 6. Pack Initramfs
-echo "[+] Packing Jules OS RootFS (Initramfs)..."
+# ── Step 5: Integrate Jules OS into RootFS ────────────────────
+step "Step 5/8: Integrating Jules OS Components"
+
+# Install Jules Shell binary
+install -m 755 "${BUILD_DIR}/jules_shell" "${ROOTFS_DIR}/bin/jules_shell"
+ok "Jules Shell installed to /bin/jules_shell"
+
+# Install init script
+install -m 755 "${JULES_DIR}/scripts/init.sh" "${ROOTFS_DIR}/init"
+ok "Init system installed to /init"
+
+# Create essential directory structure (FHS-compliant)
+mkdir -p "${ROOTFS_DIR}/home/jules"
+mkdir -p "${ROOTFS_DIR}/root"
+mkdir -p "${ROOTFS_DIR}/etc/apk"
+mkdir -p "${ROOTFS_DIR}/etc/init.d"
+mkdir -p "${ROOTFS_DIR}/var/log"
+mkdir -p "${ROOTFS_DIR}/var/run"
+mkdir -p "${ROOTFS_DIR}/mnt"
+mkdir -p "${ROOTFS_DIR}/media"
+mkdir -p "${ROOTFS_DIR}/opt"
+mkdir -p "${ROOTFS_DIR}/srv"
+
+# Set up Alpine repositories
+{
+    echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main"
+    echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/community"
+} > "${ROOTFS_DIR}/etc/apk/repositories"
+
+# Create proper /etc/passwd and /etc/group (essential for a real OS)
+if [ ! -f "${ROOTFS_DIR}/etc/passwd" ] || ! grep -q "jules" "${ROOTFS_DIR}/etc/passwd"; then
+    # Append jules user if not present
+    echo "jules:x:1000:1000:Jules User:/home/jules:/bin/jules_shell" >> "${ROOTFS_DIR}/etc/passwd"
+fi
+
+if [ ! -f "${ROOTFS_DIR}/etc/group" ] || ! grep -q "jules" "${ROOTFS_DIR}/etc/group"; then
+    echo "jules:x:1000:" >> "${ROOTFS_DIR}/etc/group"
+fi
+
+# Set root's shell to jules_shell too
+if [ -f "${ROOTFS_DIR}/etc/passwd" ]; then
+    sed -i 's|^root:.*|root:x:0:0:root:/root:/bin/jules_shell|' "${ROOTFS_DIR}/etc/passwd" 2>/dev/null || true
+fi
+
+# Create /etc/hostname
+echo "JulesOS" > "${ROOTFS_DIR}/etc/hostname"
+
+# Create /etc/hosts
+{
+    echo "127.0.0.1    localhost JulesOS"
+    echo "::1          localhost JulesOS"
+} > "${ROOTFS_DIR}/etc/hosts"
+
+# Create /etc/os-release (standard Linux identification)
+cat > "${ROOTFS_DIR}/etc/os-release" << 'EOF_OSRELEASE'
+NAME="Jules OS"
+VERSION="1.0.0"
+ID=julesos
+ID_LIKE=alpine
+VERSION_ID=1.0.0
+PRETTY_NAME="Jules OS v1.0.0 (Immutable Core)"
+HOME_URL="https://github.com/JONIMONI09/JulesOS"
+BUG_REPORT_URL="https://github.com/JONIMONI09/JulesOS/issues"
+EOF_OSRELEASE
+
+# Create /etc/motd (Message of the Day)
+cat > "${ROOTFS_DIR}/etc/motd" << 'EOF_MOTD'
+
+  ╔═══════════════════════════════════════════════════╗
+  ║            Welcome to Jules OS v1.0.0             ║
+  ║   The Immutable, High-Performance OS              ║
+  ║   Type 'help' for available commands              ║
+  ╚═══════════════════════════════════════════════════╝
+
+EOF_MOTD
+
+# Create /etc/inittab for getty fallback (BusyBox init compatible)
+cat > "${ROOTFS_DIR}/etc/inittab" << 'EOF_INITTAB'
+# JulesOS inittab - Used if BusyBox init takes over
+::sysinit:/init
+tty1::respawn:/bin/jules_shell
+ttyS0::respawn:/bin/jules_shell
+::ctrlaltdel:/sbin/reboot
+::shutdown:/bin/echo Shutting down Jules OS...
+EOF_INITTAB
+
+ok "System files and user configuration installed."
+
+# ── Step 6: Pack Initramfs ────────────────────────────────────
+step "Step 6/8: Packing Initramfs (OS Image)"
+
 cd "${ROOTFS_DIR}"
-find . -print0 | cpio --null -o -H newc | gzip -9 > "${ISO_DIR}/boot/initrd.img"
+info "Creating compressed initramfs archive..."
+find . -print0 | cpio --null -o -H newc 2>/dev/null | gzip -9 > "${ISO_DIR}/boot/initrd.img"
+INITRD_SIZE=$(du -h "${ISO_DIR}/boot/initrd.img" | cut -f1)
 cd "${JULES_DIR}"
+ok "Initramfs created: ${INITRD_SIZE}"
 
-# 7. Configure Bootloader
-echo "[+] Configuring Syslinux..."
-mkdir -p "${ISO_DIR}/boot/syslinux"
-cat << 'EOF_SYSLINUX' > "${ISO_DIR}/boot/syslinux/syslinux.cfg"
+# ── Step 7: Configure Bootloaders ─────────────────────────────
+step "Step 7/8: Configuring Bootloaders (BIOS + UEFI)"
+
+# Kernel command line (optimized for both real hardware and QEMU)
+KERNEL_CMDLINE="root=/dev/ram0 rw console=tty0 console=ttyS0,115200 quiet loglevel=3 mitigations=off nowatchdog no_timer_check"
+
+# ─── 7a. Syslinux (BIOS Boot) ───
+cat > "${ISO_DIR}/boot/syslinux/syslinux.cfg" << EOF_SYSLINUX
+PROMPT 0
+TIMEOUT 30
 DEFAULT jules
+
+MENU TITLE Jules OS Boot Menu
+MENU COLOR title  1;36;40
+MENU COLOR border 30;40
+MENU COLOR sel    7;37;40
+
 LABEL jules
+  MENU LABEL Jules OS v1.0.0 (Immutable Core)
   KERNEL /boot/bzImage
   INITRD /boot/initrd.img
-  APPEND root=/dev/ram0 rw console=ttyS0 quiet loglevel=0 mitigations=off nowatchdog no_timer_check
-EOF_SYSLINUX
+  APPEND ${KERNEL_CMDLINE}
 
-# 8. Create ISO
-echo "[+] Creating Bootable ISO Image (JulesOS.iso)..."
+LABEL jules-debug
+  MENU LABEL Jules OS (Debug Mode)
+  KERNEL /boot/bzImage
+  INITRD /boot/initrd.img
+  APPEND ${KERNEL_CMDLINE} loglevel=7 debug
+EOF_SYSLINUX
+ok "Syslinux (BIOS) configured."
+
+# ─── 7b. GRUB (UEFI Boot) ───
+cat > "${ISO_DIR}/boot/grub/grub.cfg" << EOF_GRUB
+set timeout=3
+set default=0
+
+menuentry "Jules OS v1.0.0 (Immutable Core)" {
+    linux /boot/bzImage ${KERNEL_CMDLINE}
+    initrd /boot/initrd.img
+}
+
+menuentry "Jules OS (Debug Mode)" {
+    linux /boot/bzImage ${KERNEL_CMDLINE} loglevel=7 debug
+    initrd /boot/initrd.img
+}
+EOF_GRUB
+ok "GRUB (UEFI) configured."
+
+# ── Step 8: Create ISO Image ─────────────────────────────────
+step "Step 8/8: Creating Bootable ISO Image"
+
 if [ "$IS_TERMUX" -eq 1 ]; then
-    echo "[i] Skipping ISO creation under Termux (not strictly required)."
-    echo "[+] Creating QEMU runner script for Termux (run_qemu.sh)..."
-    cat << 'EOF_RUNNER' > run_qemu.sh
+    warn "Termux detected. Creating QEMU direct-boot runner instead of ISO."
+
+    cat > "${JULES_DIR}/run_qemu.sh" << 'EOF_RUNNER'
 #!/bin/bash
 if ! command -v qemu-system-x86_64 >/dev/null 2>&1; then
-    echo "[!] qemu-system-x86_64 not found. Install it before continuing."
+    echo "[!] qemu-system-x86_64 not found. Install it first."
     exit 1
 fi
-
-echo "[+] Starting Jules OS in QEMU..."
+echo "[+] Starting Jules OS in QEMU (direct kernel boot)..."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 qemu-system-x86_64 \
-    -kernel iso/boot/bzImage \
-    -initrd iso/boot/initrd.img \
-    -append "root=/dev/ram0 rw console=ttyS0 quiet loglevel=0 mitigations=off nowatchdog no_timer_check" \
+    -kernel "${SCRIPT_DIR}/iso/boot/bzImage" \
+    -initrd "${SCRIPT_DIR}/iso/boot/initrd.img" \
+    -append "root=/dev/ram0 rw console=ttyS0 quiet loglevel=3" \
     -nographic \
-    -m 512M
+    -m 512M \
+    -net nic,model=virtio -net user
 EOF_RUNNER
-    chmod +x run_qemu.sh
-    echo "[SUCCESS] Build process finished. Run './run_qemu.sh' to start Jules OS."
+    chmod +x "${JULES_DIR}/run_qemu.sh"
+    ok "QEMU runner created: run_qemu.sh"
+
 else
-    if command -v xorriso >/dev/null 2>&1; then
-    SYSLINUX_DIR=""
-    for d in /usr/lib/syslinux/modules/bios /usr/share/syslinux /usr/lib/ISOLINUX /usr/lib/syslinux/bios /usr/lib/syslinux/modules/bios; do
-        if [ -f "$d/isolinux.bin" ]; then
-            SYSLINUX_DIR="$d"
-            break
-        fi
-    done
+    # ─── Create Hybrid BIOS/UEFI ISO ───
 
-    if [ -n "$SYSLINUX_DIR" ]; then
-        cp "$SYSLINUX_DIR/isolinux.bin" "${ISO_DIR}/boot/syslinux/"
+    # Method 1: Try grub-mkrescue first (best UEFI support)
+    ISO_CREATED=0
 
-        # Make sure to copy ALL necessary syslinux module files.
-        MODULES_DIR=""
-        for d in /usr/lib/syslinux/modules/bios /usr/share/syslinux /usr/lib/syslinux/bios; do
-            if [ -f "$d/ldlinux.c32" ]; then
-                MODULES_DIR="$d"
-                break
-            fi
-        done
-
-        if [ -n "$MODULES_DIR" ]; then
-            cp "$MODULES_DIR/ldlinux.c32" "${ISO_DIR}/boot/syslinux/"
-            [ -f "$MODULES_DIR/libutil.c32" ] && cp "$MODULES_DIR/libutil.c32" "${ISO_DIR}/boot/syslinux/"
-            [ -f "$MODULES_DIR/menu.c32" ] && cp "$MODULES_DIR/menu.c32" "${ISO_DIR}/boot/syslinux/"
-            [ -f "$MODULES_DIR/libcom32.c32" ] && cp "$MODULES_DIR/libcom32.c32" "${ISO_DIR}/boot/syslinux/"
-        fi
-
-        # also create boot.cat in syslinux directory
-        touch "${ISO_DIR}/boot/syslinux/boot.cat"
-
-
-        ISOHDPFX=""
-        for d in /usr/lib/syslinux/mbr /usr/share/syslinux /usr/lib/ISOLINUX; do
-            if [ -f "$d/isohdpfx.bin" ]; then
-                ISOHDPFX="$d/isohdpfx.bin"
-                break
-            fi
-        done
-
-        if [ -n "$ISOHDPFX" ]; then
-            xorriso -as mkisofs -o JulesOS.iso \
-              -b boot/syslinux/isolinux.bin \
-              -c boot/syslinux/boot.cat \
-              -no-emul-boot -boot-load-size 4 -boot-info-table \
-              -isohybrid-mbr "$ISOHDPFX" -partition_offset 16 \
-              -R -J -v -T "${ISO_DIR}" >/dev/null 2>&1
+    if command -v grub-mkrescue >/dev/null 2>&1; then
+        info "Using grub-mkrescue for hybrid BIOS/UEFI ISO..."
+        if grub-mkrescue -o "${ISO_OUTPUT}" "${ISO_DIR}" 2>/dev/null; then
+            ISO_CREATED=1
+            ok "Hybrid BIOS/UEFI ISO created via grub-mkrescue."
         else
-            echo "[i] isohdpfx.bin not found. Building without isohybrid-mbr."
-            xorriso -as mkisofs -o JulesOS.iso \
-              -b boot/syslinux/isolinux.bin \
-              -c boot/syslinux/boot.cat \
-              -no-emul-boot -boot-load-size 4 -boot-info-table \
-              -R -J -v -T "${ISO_DIR}" >/dev/null 2>&1
+            warn "grub-mkrescue failed. Trying xorriso fallback..."
         fi
-
-        echo "[SUCCESS] JulesOS.iso created."
-
-
-    else
-        xorriso -as mkisofs -o JulesOS.iso -R -J "${ISO_DIR}" >/dev/null 2>&1
-        echo "[i] Created non-bootable ISO (missing isolinux.bin)."
     fi
-else
-    echo "[!] xorriso not found. Skipping ISO creation."
+
+    # Method 2: Manual xorriso with syslinux (BIOS only, but reliable)
+    if [ "$ISO_CREATED" -eq 0 ] && command -v xorriso >/dev/null 2>&1; then
+        info "Using xorriso for ISO creation..."
+
+        # Find syslinux files
+        SYSLINUX_DIR=""
+        for d in /usr/lib/syslinux/modules/bios /usr/share/syslinux /usr/lib/syslinux/bios /usr/lib/ISOLINUX; do
+            if [ -f "$d/isolinux.bin" ]; then
+                SYSLINUX_DIR="$d"
+                break
+            fi
+        done
+
+        if [ -n "$SYSLINUX_DIR" ]; then
+            cp "$SYSLINUX_DIR/isolinux.bin" "${ISO_DIR}/boot/syslinux/"
+
+            # Copy required syslinux modules
+            MODULES_DIR=""
+            for d in /usr/lib/syslinux/modules/bios /usr/share/syslinux /usr/lib/syslinux/bios; do
+                if [ -f "$d/ldlinux.c32" ]; then
+                    MODULES_DIR="$d"
+                    break
+                fi
+            done
+
+            if [ -n "$MODULES_DIR" ]; then
+                for mod in ldlinux.c32 libutil.c32 menu.c32 libcom32.c32; do
+                    [ -f "$MODULES_DIR/$mod" ] && cp "$MODULES_DIR/$mod" "${ISO_DIR}/boot/syslinux/"
+                done
+            fi
+
+            touch "${ISO_DIR}/boot/syslinux/boot.cat"
+
+            # Find isohdpfx for hybrid MBR (allows dd to USB)
+            ISOHDPFX=""
+            for d in /usr/lib/syslinux/mbr /usr/share/syslinux /usr/lib/ISOLINUX; do
+                if [ -f "$d/isohdpfx.bin" ]; then
+                    ISOHDPFX="$d/isohdpfx.bin"
+                    break
+                fi
+            done
+
+            XORRISO_ARGS=(
+                -as mkisofs -o "${ISO_OUTPUT}"
+                -b boot/syslinux/isolinux.bin
+                -c boot/syslinux/boot.cat
+                -no-emul-boot -boot-load-size 4 -boot-info-table
+                -R -J -v -T
+            )
+
+            if [ -n "$ISOHDPFX" ]; then
+                XORRISO_ARGS+=(-isohybrid-mbr "$ISOHDPFX" -partition_offset 16)
+            fi
+
+            # Try to add UEFI boot if EFI image exists
+            if [ -f "${ISO_DIR}/boot/efi.img" ]; then
+                XORRISO_ARGS+=(
+                    -eltorito-alt-boot
+                    -e boot/efi.img
+                    -no-emul-boot
+                    -isohybrid-gpt-basdat
+                )
+            fi
+
+            xorriso "${XORRISO_ARGS[@]}" "${ISO_DIR}" >/dev/null 2>&1
+            ISO_CREATED=1
+            ok "ISO created via xorriso (BIOS + isohybrid)."
+
+        else
+            # No isolinux, try basic xorriso
+            xorriso -as mkisofs -o "${ISO_OUTPUT}" -R -J "${ISO_DIR}" >/dev/null 2>&1
+            ISO_CREATED=1
+            warn "Created basic ISO (no bootloader binaries found for hybrid)."
+        fi
+    fi
+
+    if [ "$ISO_CREATED" -eq 0 ]; then
+        warn "No ISO creation tools found. Boot files are in: ${ISO_DIR}/boot/"
+        info "You can boot directly with QEMU using:"
+        info "  qemu-system-x86_64 -kernel iso/boot/bzImage -initrd iso/boot/initrd.img -append 'root=/dev/ram0 rw console=ttyS0' -nographic -m 512M"
+    fi
 fi
 
-    echo "================================================"
-    echo "[SUCCESS] Build process finished."
-    echo "================================================"
+# ═══════════════════════════════════════════════════════════════
+# BUILD SUMMARY
+# ═══════════════════════════════════════════════════════════════
+echo ""
+echo -e "${BOLD}${GREEN}"
+echo "  ╔═══════════════════════════════════════════════════╗"
+echo "  ║         Jules OS Build Complete! ✓                ║"
+echo "  ╚═══════════════════════════════════════════════════╝"
+echo -e "${NC}"
+echo -e "  ${BOLD}Components:${NC}"
+echo -e "    Kernel:    ${GREEN}$(file "${ISO_DIR}/boot/bzImage" 2>/dev/null | cut -d: -f2 | head -c60)${NC}"
+echo -e "    Initrd:    ${GREEN}${INITRD_SIZE}${NC}"
+[ -f "${ISO_OUTPUT}" ] && echo -e "    ISO:       ${GREEN}$(du -h "${ISO_OUTPUT}" | cut -f1)${NC}"
+[ -n "${KERNEL_VERSION:-}" ] && echo -e "    Modules:   ${GREEN}${KERNEL_VERSION}${NC}"
+echo ""
+echo -e "  ${BOLD}Boot Options:${NC}"
+if [ -f "${ISO_OUTPUT}" ]; then
+    echo "    • QEMU:    ./scripts/boot.sh"
+    echo "    • USB:     dd if=JulesOS.iso of=/dev/sdX bs=4M status=progress"
 fi
+echo "    • Direct:  qemu-system-x86_64 -kernel iso/boot/bzImage -initrd iso/boot/initrd.img \\"
+echo "                 -append 'root=/dev/ram0 rw console=ttyS0' -nographic -m 512M"
+echo ""

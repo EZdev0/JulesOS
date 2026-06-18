@@ -26,7 +26,22 @@ else()
 endif()
 
 # Common flags for performance and size
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall -Wextra")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall -Wextra -Wpedantic")
+
+# Security hardening flags (2025/2026 best practices)
+# -D_FORTIFY_SOURCE=2: Detect buffer overflows at runtime
+# -fstack-protector-strong: Protect against stack-based buffer overflows
+# -Wformat/-Wformat-security: Catch format string vulnerabilities
+# -fPIE: Position Independent Executable (enables ASLR)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_FORTIFY_SOURCE=2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wformat -Wformat-security")
+
+if(NOT STATIC_BUILD)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIE")
+    # RELRO+NOW: Make GOT read-only to prevent GOT overwrite attacks
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie -Wl,-z,relro,-z,now")
+endif()
 
 # Add the executable
 add_executable(jules_shell

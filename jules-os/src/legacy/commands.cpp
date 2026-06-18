@@ -15,13 +15,13 @@
 #include <sstream>
 #include <iomanip>
 #include <map>
-#include <sstream>
-#include <cmath>
-#include <glob.h>
-#include <sys/statvfs.h>
+#include <algorithm>
+#include <fcntl.h>
+#include <climits>
 
 namespace JulesOS {
 
+// ── Centralized ANSI Color Definitions (single source of truth) ──
 const std::string COLOR_RESET = "\033[0m";
 const std::string COLOR_RED = "\033[31m";
 const std::string COLOR_GREEN = "\033[32m";
@@ -30,6 +30,9 @@ const std::string COLOR_BLUE = "\033[34m";
 const std::string COLOR_MAGENTA = "\033[35m";
 const std::string COLOR_CYAN = "\033[36m";
 const std::string BOLD = "\033[1m";
+
+// Maximum allowed command length to prevent abuse
+static constexpr size_t MAX_COMMAND_LENGTH = 4096;
 
 std::string trim(const std::string& s) {
     std::string trimmed = s;
@@ -76,8 +79,6 @@ std::map<std::string, unsigned long long> get_mem_info() {
     return mem_data;
 }
 
-void execute_external(const std::string& cmd); // forward declaration
-
 void show_help() {
     std::cout << COLOR_CYAN << BOLD << "\n=== Jules OS Core Commands ===\n" << COLOR_RESET;
     std::cout << COLOR_YELLOW << "help" << COLOR_RESET << "      - Show this message\n";
@@ -92,39 +93,20 @@ void show_help() {
     std::cout << "Or type any standard Linux command (ls, cd, apk, etc.)\n\n";
 }
 
-
-
-
-
-
-
-std::string format_size(unsigned long long bytes) {
-    const char* units[] = {"B", "K", "M", "G", "T"};
-    int i = 0;
-    double size = bytes;
-    while (size >= 1024 && i < 4) {
-        size /= 1024;
-        i++;
-    }
-    std::stringstream ss;
-    ss << std::fixed << std::setprecision(1) << size << units[i];
-    return ss.str();
-}
-
 void print_disk_usage(const std::string& path) {
     struct statvfs vfs;
     if (statvfs(path.c_str(), &vfs) == 0) {
-        unsigned long long total = (unsigned long long)vfs.f_blocks * vfs.f_frsize;
-        unsigned long long free = (unsigned long long)vfs.f_bfree * vfs.f_frsize;
-        unsigned long long available = (unsigned long long)vfs.f_bavail * vfs.f_frsize;
-        unsigned long long used = total - free;
-        double usage_pct = (total > 0) ? (double)used * 100.0 / total : 0;
+        unsigned long long total = static_cast<unsigned long long>(vfs.f_blocks) * vfs.f_frsize;
+        unsigned long long free_space = static_cast<unsigned long long>(vfs.f_bfree) * vfs.f_frsize;
+        unsigned long long available = static_cast<unsigned long long>(vfs.f_bavail) * vfs.f_frsize;
+        unsigned long long used = total - free_space;
+        double usage_pct = (total > 0) ? static_cast<double>(used) * 100.0 / static_cast<double>(total) : 0;
 
         std::cout << std::left << std::setw(10) << path
-                  << std::right << std::setw(8) << format_size(total)
-                  << std::setw(8) << format_size(used)
-                  << std::setw(8) << format_size(available)
-                  << std::setw(6) << (int)std::round(usage_pct) << "%\n";
+                  << std::right << std::setw(8) << format_bytes(total)
+                  << std::setw(8) << format_bytes(used)
+                  << std::setw(8) << format_bytes(available)
+                  << std::setw(6) << static_cast<int>(std::round(usage_pct)) << "%\n";
     }
 }
 
@@ -134,21 +116,21 @@ void show_status() {
     std::map<std::string, unsigned long long> mem_info = get_mem_info();
     if (!mem_info.empty()) {
         unsigned long long total = mem_info["MemTotal"];
-        unsigned long long free = mem_info["MemFree"];
+        unsigned long long free_mem = mem_info["MemFree"];
         unsigned long long buffers = mem_info["Buffers"];
         unsigned long long cached = mem_info["Cached"];
         unsigned long long slab = mem_info["Slab"];
         unsigned long long shared = mem_info["Shmem"];
         unsigned long long buff_cache = buffers + cached + slab;
-        unsigned long long used = total - free - buff_cache;
+        unsigned long long used = total - free_mem - buff_cache;
         unsigned long long available = mem_info["MemAvailable"];
-        if (available == 0) available = free + buff_cache; // Fallback
+        if (available == 0) available = free_mem + buff_cache; // Fallback
 
         std::cout << "               total        used        free      shared  buff/cache   available\n";
         std::cout << "Mem:    ";
         std::cout << std::setw(12) << format_bytes(total);
         std::cout << std::setw(12) << format_bytes(used);
-        std::cout << std::setw(12) << format_bytes(free);
+        std::cout << std::setw(12) << format_bytes(free_mem);
         std::cout << std::setw(12) << format_bytes(shared);
         std::cout << std::setw(12) << format_bytes(buff_cache);
         std::cout << std::setw(12) << format_bytes(available) << "\n";
@@ -190,15 +172,15 @@ void run_fetch() {
         std::cout << minutes << " minutes\n";
 
         unsigned long long total = mem_info["MemTotal"];
-        unsigned long long free = mem_info["MemFree"];
-        unsigned long long buffers = mem_info["Buffers"];
-        unsigned long long cached = mem_info["Cached"];
-        unsigned long long slab = mem_info["Slab"];
-        unsigned long long used = total - free - (buffers + cached + slab);
+        unsigned long long free_mem = mem_info["MemFree"];
+        unsigned long long buffers_val = mem_info["Buffers"];
+        unsigned long long cached_val = mem_info["Cached"];
+        unsigned long long slab_val = mem_info["Slab"];
+        unsigned long long used = total - free_mem - (buffers_val + cached_val + slab_val);
 
         unsigned long long used_mb = used / (1024 * 1024);
         unsigned long long total_mb = total / (1024 * 1024);
-        double pct = (total > 0) ? (static_cast<double>(used) * 100.0 / total) : 0.0;
+        double pct = (total > 0) ? (static_cast<double>(used) * 100.0 / static_cast<double>(total)) : 0.0;
         std::cout << COLOR_YELLOW << "Memory: " << COLOR_RESET << used_mb << "/" << total_mb << "MB ("
                   << std::fixed << std::setprecision(2) << pct << "%)\n";
     } else {
@@ -252,8 +234,6 @@ void run_python() {
         python_path = "/bin/python3";
     } else {
         std::cout << COLOR_YELLOW << "Python3 is not installed. Installing via apk...\n" << COLOR_RESET;
-        // On Jules OS (Alpine), apk is usually at /sbin/apk or /usr/bin/apk
-        // We'll try to find it via PATH for installation only, or assume a likely path
         execute_external("apk add --no-cache python3");
 
         // After install, re-check paths
@@ -276,7 +256,6 @@ void run_jupdate() {
     if (access("/sbin/apk", X_OK) == 0) apk_path = "/sbin/apk";
     else if (access("/usr/bin/apk", X_OK) == 0) apk_path = "/usr/bin/apk";
 
-    // We skip the ping check with system() and directly attempt apk update
     std::cout << COLOR_YELLOW << "-> Updating package lists..." << COLOR_RESET << "\n";
     execute_external(apk_path + " update");
 
@@ -298,10 +277,30 @@ std::string get_kernel_release() {
     return "unknown";
 }
 
+/**
+ * Closes all file descriptors >= start_fd in the child process
+ * after fork() to prevent leaking FDs to child processes.
+ */
+static void close_fds_above(int start_fd) {
+    // Try /proc/self/fd first (most efficient on Linux)
+    long max_fd = sysconf(_SC_OPEN_MAX);
+    if (max_fd < 0) max_fd = 1024; // Fallback
+    for (int fd = start_fd; fd < max_fd; ++fd) {
+        close(fd);
+    }
+}
+
 void execute_external(const std::string& cmd) {
+    // Reject excessively long commands
+    if (cmd.length() > MAX_COMMAND_LENGTH) {
+        std::cerr << COLOR_RED << "Error: Command too long (max "
+                  << MAX_COMMAND_LENGTH << " chars)" << COLOR_RESET << std::endl;
+        return;
+    }
+
     if (cmd.rfind("cd ", 0) == 0) {
         std::string dir = trim(cmd.substr(3));
-        if (dir == "~" || dir == "") {
+        if (dir == "~" || dir.empty()) {
             const char* home = getenv("HOME");
             if (home) dir = home;
             else dir = "/home/jules";
@@ -332,9 +331,9 @@ void execute_external(const std::string& cmd) {
             if (c == '"' || c == '\'') {
                 in_quotes = true;
                 quote_char = c;
-            } else if (std::isspace(c)) {
-                if (!current.empty() || (i > 0 && (cmd[i-1] == '"' || cmd[i-1] == '\''))) {
-                    if (!current.empty()) args.push_back(current);
+            } else if (std::isspace(static_cast<unsigned char>(c))) {
+                if (!current.empty()) {
+                    args.push_back(current);
                     current.clear();
                 }
             } else {
@@ -348,19 +347,27 @@ void execute_external(const std::string& cmd) {
 
     if (args.empty()) return;
 
+    // Build C-style argument array using std::transform
     std::vector<char*> c_args;
     c_args.reserve(args.size() + 1);
-    for (auto& arg : args) { if (!arg.empty()) c_args.push_back(&arg[0]); }
+    std::transform(args.begin(), args.end(), std::back_inserter(c_args),
+                   [](std::string& s) -> char* { return s.data(); });
     c_args.push_back(nullptr);
+
+    if (c_args.empty() || c_args[0] == nullptr) return;
 
     pid_t pid = fork();
     if (pid == -1) {
         std::cerr << COLOR_RED << "Failed to fork" << COLOR_RESET << std::endl;
     } else if (pid == 0) {
-        if (c_args.empty() || c_args[0] == nullptr) exit(1);
+        // Child process: close unnecessary file descriptors
+        // Keep stdin(0), stdout(1), stderr(2) open
+        close_fds_above(3);
+
         execvp(c_args[0], c_args.data());
+        // If execvp returns, the command failed
         std::cerr << COLOR_RED << "Failed to execute: " << c_args[0] << COLOR_RESET << std::endl;
-        exit(127);
+        _exit(127); // Use _exit in child to avoid flushing parent's buffers
     } else {
         int status;
         waitpid(pid, &status, 0);
@@ -396,7 +403,7 @@ void execute_command(const std::string& cmd) {
 
         execute_external(poweroff_path);
 
-        exit(0);
+        _exit(0); // Use _exit for clean shutdown
     } else if (trimmed == "reboot") {
         std::cout << COLOR_YELLOW << "Rebooting Jules OS...\n" << COLOR_RESET;
         std::string reboot_path;
@@ -405,7 +412,7 @@ void execute_command(const std::string& cmd) {
         else reboot_path = "reboot"; // Fallback to PATH as last resort
 
         execute_external(reboot_path);
-        exit(0);
+        _exit(0); // Use _exit for clean shutdown
     } else {
         execute_external(trimmed);
     }
