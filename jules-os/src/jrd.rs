@@ -53,12 +53,11 @@ pub fn start_daemon() {
 
                             if cpu_usage > CPU_LIMIT_PERCENT {
                                 // Freeze the process
-                                if !suspended_pids.contains_key(&pid) {
+                                suspended_pids.entry(pid).or_insert_with(|| {
                                     println!("\n\x1b[1;33m[JRD] Heavy load detected ({}% CPU) on PID {}. Freezing to prevent lag...\x1b[0m", cpu_usage as u32, pid);
                                     let _ = Command::new("kill").arg("-SIGSTOP").arg(pid.to_string()).output();
-                                    // Store timestamp for cooldown
-                                    suspended_pids.insert(pid, 0);
-                                }
+                                    0
+                                });
                             }
                         }
                     }

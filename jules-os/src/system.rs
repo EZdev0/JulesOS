@@ -1,5 +1,6 @@
+#![allow(dead_code)]
+
 //! System-level operations for Jules OS.
-//!
 //! Provides safe wrappers for reading/writing procfs, sysfs,
 //! kernel info, and hardware detection.
 

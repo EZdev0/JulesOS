@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! ANSI color constants and formatting utilities for Jules OS.
 //!
 //! Provides a centralized color system used consistently across

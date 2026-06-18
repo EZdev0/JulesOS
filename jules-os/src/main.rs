@@ -106,8 +106,8 @@ fn print_banner() {
 /// Shows the current working directory, with /home abbreviated to ~.
 fn get_prompt() -> String {
     let cwd = system::get_cwd();
-    let display_dir = if cwd.starts_with("/home") {
-        format!("~{}", &cwd[5..])
+    let display_dir = if let Some(stripped) = cwd.strip_prefix("/home") {
+        format!("~{}", stripped)
     } else {
         cwd
     };
