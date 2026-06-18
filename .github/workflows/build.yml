@@ -113,11 +113,7 @@ jobs:
           echo "================================================"
           echo "🧪 COMPONENT TESTS"
           echo "================================================"
-          mkdir -p build
-          cd build
-          cmake -DSTATIC_BUILD=OFF .. || (echo "CMake configuration failed" && exit 1)
-          make -j$(nproc) || (echo "Compilation failed" && exit 1)
-          cd ..
+
           chmod +x build/jules_shell
           ls -la build/jules_shell
           ldd build/jules_shell || true
@@ -343,6 +339,12 @@ jobs:
 
 
 
+      - name: 📥 Download Jules Shell
+        uses: actions/download-artifact@v4
+        with:
+          name: jules-shell-binary
+          path: ./jules-os/build/
+
       - name: 🏗️ Build ISO Image
         working-directory: ./jules-os
         run: |
@@ -350,10 +352,10 @@ jobs:
           echo "🏗️  BUILDING ISO IMAGE"
           echo "================================================"
           
+
           chmod +x build/jules_shell
           ls -la build/jules_shell
           ldd build/jules_shell || true
-          chmod +x ./build/jules_shell
           ./build/jules_shell -c "help" || true
           chmod +x scripts/*.sh
           
