@@ -505,7 +505,13 @@ step "Step 6/8: Packing Initramfs (OS Image)"
 
 cd "${ROOTFS_DIR}"
 info "Creating compressed initramfs archive..."
-find . -print0 | cpio --null -o -H newc 2>/dev/null | gzip -9 > "${ISO_DIR}/boot/initrd.img"
+if command -v pv >/dev/null 2>&1; then
+    # Calculate uncompressed size for accurate ETA
+    TOTAL_SIZE=$(du -sb . | awk '{print $1}')
+    find . -print0 | cpio --null -o -H newc 2>/dev/null | pv -s "$TOTAL_SIZE" -p -t -e -r -a | gzip -9 > "${ISO_DIR}/boot/initrd.img"
+else
+    find . -print0 | cpio --null -o -H newc 2>/dev/null | gzip -9 > "${ISO_DIR}/boot/initrd.img"
+fi
 INITRD_SIZE=$(du -h "${ISO_DIR}/boot/initrd.img" | cut -f1)
 cd "${JULES_DIR}"
 ok "Initramfs created: ${INITRD_SIZE}"

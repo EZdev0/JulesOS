@@ -20,13 +20,17 @@ if (-not (Get-Command "docker" -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
+# 1.5. Cleanup old test containers
+Write-Host "-> Checking for old jules-test-container copies..." -ForegroundColor DarkGray
+docker rm -f jules-test-container 2>$null
+
 # 2. Setup Build Environment (Docker)
 Write-Host "`n[1/3] Preparing Docker Build Environment..." -ForegroundColor Green
 $dockerfile = @"
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
-    wget tar cpio gzip xorriso syslinux syslinux-utils \
+    wget tar cpio gzip xorriso syslinux syslinux-utils pv \
     dosfstools mtools qemu-utils grub-pc-bin grub-efi-amd64-bin \
     cargo rustc nasm g++ shellcheck cppcheck \
     qemu-system-x86 python3
@@ -51,13 +55,19 @@ if ($LASTEXITCODE -ne 0) {
 
 # 3. Build & Test ISO im isolierten Container (OHNE Volumes)
 Write-Host "`n[2/4] Running Linting Tools and Building JulesOS ISO in absolute isolation..." -ForegroundColor Green
-$containerId = docker create jules-builder bash -c "mkdir -p /build/linting_logs && echo 'Running Shellcheck...' && shellcheck jules-os/scripts/*.sh > /build/linting_logs/shellcheck.log || true && echo 'Running Cppcheck...' && cppcheck --enable=all jules-os/src/legacy/ > /build/linting_logs/cppcheck.log 2>&1 || true && echo 'Running Cargo Clippy...' && cd /build/jules-os && cargo clippy --all-targets > /build/linting_logs/clippy.log 2>&1 || true && echo 'Building ISO...' && bash scripts/build.sh && echo 'Verifying Native Compilers in JulesOS RootFS...' && chroot build/rootfs /usr/bin/gcc --version && chroot build/rootfs /usr/bin/cargo --version && python3 tests/qemu_boot_test.py"
+$containerId = "jules-test-container"
+docker create --name $containerId jules-builder bash -c "mkdir -p /build/linting_logs && echo 'Running Shellcheck...' && shellcheck jules-os/scripts/*.sh > /build/linting_logs/shellcheck.log || true && echo 'Running Cppcheck...' && cppcheck --enable=all jules-os/src/legacy/ > /build/linting_logs/cppcheck.log 2>&1 || true && echo 'Running Cargo Clippy...' && cd /build/jules-os && cargo clippy --all-targets > /build/linting_logs/clippy.log 2>&1 || true && echo 'Building ISO...' && bash scripts/build.sh && echo 'Verifying Native Compilers in JulesOS RootFS...' && chroot build/rootfs /usr/bin/gcc --version && chroot build/rootfs /usr/bin/cargo --version && python3 tests/qemu_boot_test.py" > $null
 
 Write-Host "-> Running container processes..." -ForegroundColor DarkGray
 docker start -a $containerId
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Build or QEMU Boot Test failed inside the container!"
-    docker rm $containerId > $null
+    Write-Warning "Build or QEMU Boot Test failed inside the container! Extracting logs only..."
+    docker cp "${containerId}:/build/linting_logs" ".\"
+    if (Test-Path ".\JulesOS_CrashLogs.zip") { Remove-Item ".\JulesOS_CrashLogs.zip" }
+    Compress-Archive -Path ".\linting_logs\*" -DestinationPath ".\JulesOS_CrashLogs.zip" -Force
+    Remove-Item -Recurse -Force ".\linting_logs"
+    docker rm -f $containerId > $null
+    Write-Error "Test failed. Logs securely saved to JulesOS_CrashLogs.zip"
     exit 1
 }
 
@@ -68,10 +78,13 @@ Write-Host "-> ISO Extracted Successfully!" -ForegroundColor DarkGray
 
 Write-Host "`n[4/4] Extracting Linting Logs..." -ForegroundColor Green
 docker cp "${containerId}:/build/linting_logs" ".\"
-Write-Host "-> Linting logs saved to .\linting_logs\" -ForegroundColor DarkGray
+if (Test-Path ".\JulesOS_Logs.zip") { Remove-Item ".\JulesOS_Logs.zip" }
+Compress-Archive -Path ".\linting_logs\*" -DestinationPath ".\JulesOS_Logs.zip" -Force
+Remove-Item -Recurse -Force ".\linting_logs"
+Write-Host "-> Linting logs saved to .\JulesOS_Logs.zip" -ForegroundColor DarkGray
 
 # Cleanup
-docker rm $containerId > $null
+docker rm -f $containerId > $null
 Write-Host "`n==========================================================" -ForegroundColor Green
 Write-Host " Local Test Completed. ISO & Logs are ready! " -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green

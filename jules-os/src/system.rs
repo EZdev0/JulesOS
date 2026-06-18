@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 //! System-level operations for Jules OS.
 //! Provides safe wrappers for reading/writing procfs, sysfs,
 //! kernel info, and hardware detection.
@@ -14,13 +12,6 @@ pub fn get_kernel_release() -> String {
     fs::read_to_string("/proc/sys/kernel/osrelease")
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|_| "unknown".to_string())
-}
-
-/// Get the system hostname via procfs.
-pub fn get_hostname() -> String {
-    fs::read_to_string("/proc/sys/kernel/hostname")
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|_| "JulesOS".to_string())
 }
 
 /// Parse /proc/meminfo into a HashMap of key → value (in bytes).
@@ -105,11 +96,6 @@ pub fn get_uptime() -> Option<(u64, u64, u64)> {
 /// Silently fails if the path doesn't exist or isn't writable.
 pub fn write_sysfs(path: &str, value: &str) {
     let _ = fs::write(path, format!("{value}\n"));
-}
-
-/// Read the contents of a file, returning an empty string on failure.
-pub fn read_file(path: &str) -> String {
-    fs::read_to_string(path).unwrap_or_default()
 }
 
 /// Format a byte count into a human-readable string.

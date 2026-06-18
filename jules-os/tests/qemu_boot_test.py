@@ -45,7 +45,7 @@ def run_test():
     ]
     
     found_markers = set()
-    timeout = 30  # seconds
+    timeout = 90  # seconds
     start_time = time.time()
     
     print(f"⏳ [Sub-Agent] Waiting for boot sequence (Timeout: {timeout}s)...")

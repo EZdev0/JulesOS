@@ -24,6 +24,21 @@ mount -t tmpfs -o mode=0755 none /run
 echo "[ OK ] Core filesystems mounted."
 
 # ══════════════════════════════════════════════════════════════
+# 1.5. HARDWARE COMPATIBILITY CHECK
+# ══════════════════════════════════════════════════════════════
+echo "[INFO] Checking hardware requirements..."
+TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+if [ -n "$TOTAL_RAM_KB" ] && [ "$TOTAL_RAM_KB" -lt 500000 ]; then
+    clear
+    echo -e "\033[1;41m\033[1;37m                                                          \033[0m"
+    echo -e "\033[1;41m\033[1;37m  [FATAL ERROR] HARDWARE NOT SUPPORTED                    \033[0m"
+    echo -e "\033[1;41m\033[1;37m  JulesOS requires at least 512MB RAM to function safely. \033[0m"
+    echo -e "\033[1;41m\033[1;37m  System halted to prevent data corruption.               \033[0m"
+    echo -e "\033[1;41m\033[1;37m                                                          \033[0m"
+    while true; do sleep 60; done
+fi
+
+# ══════════════════════════════════════════════════════════════
 # 2. IMMUTABLE OVERLAYFS (The "Indestructible" Layer)
 # ══════════════════════════════════════════════════════════════
 # The rootfs from initramfs is our read-only base (lowerdir).
@@ -98,14 +113,24 @@ if command -v modprobe >/dev/null 2>&1; then
     modprobe vfat 2>/dev/null || true
     modprobe overlay 2>/dev/null || true
 
-    # Auto-detect hardware via modalias (loads matching modules)
+    # Auto-detect hardware via modalias with Loading Animation
     if [ -d /sys/bus ]; then
+        echo -n "  [WAIT] Scanning PCI/USB buses and loading drivers...  "
+        spinstr='|/-\'
+        i=0
         for modalias_file in $(find /sys/bus/*/devices/*/modalias -maxdepth 0 2>/dev/null); do
             modalias=$(cat "$modalias_file" 2>/dev/null)
             if [ -n "$modalias" ]; then
                 modprobe "$modalias" 2>/dev/null || true
             fi
+            
+            # Spin animation
+            i=$(( (i+1) % 4 ))
+            # Get character using cut (busybox compatible)
+            char=$(echo "$spinstr" | cut -c $((i+1)))
+            printf "\b%s" "$char"
         done
+        printf "\b[DONE]\n"
     fi
 
     echo "[ OK ] Hardware drivers loaded."

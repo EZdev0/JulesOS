@@ -8,6 +8,12 @@
 /jules-os/JulesOS.iso
 /jules-os/data.img
 /jules-os/run_qemu.sh
+/JulesOS.iso
+*.zip
+
+# Logs and Agents
+/linting_logs/
+/.agent/
 
 # Legacy C++ build artifacts
 /jules-os/build_test/
