@@ -146,12 +146,12 @@ step "Step 3/8: Downloading Alpine Linux RootFS"
 
 if [ ! -f "${BUILD_DIR}/${ALPINE_TAR}" ]; then
     info "Downloading Alpine minirootfs v${ALPINE_RELEASE}..."
-    wget -q --show-progress -O "${BUILD_DIR}/${ALPINE_TAR}" "${ALPINE_URL}" || \
+    wget -q --show-progress --timeout=15 --tries=3 -O "${BUILD_DIR}/${ALPINE_TAR}" "${ALPINE_URL}" || \
         error "Failed to download Alpine minirootfs"
 
     # SHA256 verification
     info "Verifying download integrity (SHA256)..."
-    if wget -qO "${BUILD_DIR}/${ALPINE_TAR}.sha256" "${ALPINE_SHA_URL}" 2>/dev/null; then
+    if wget -qO "${BUILD_DIR}/${ALPINE_TAR}.sha256" --timeout=15 --tries=3 "${ALPINE_SHA_URL}" 2>/dev/null; then
         cd "${BUILD_DIR}"
         if sha256sum -c "${ALPINE_TAR}.sha256" 2>/dev/null | grep -q "OK"; then
             ok "SHA256 checksum verified."
@@ -185,7 +185,7 @@ KERNEL_TYPE="virt"  # Use virt for smaller size; lts for real hardware
 info "Fetching kernel index from Alpine repository..."
 
 # Download kernel
-KERNEL_PKG_NAME=$(wget -qO- "${ALPINE_REPO}/main/${ALPINE_ARCH}/" 2>/dev/null | \
+KERNEL_PKG_NAME=$(wget -qO- --timeout=15 --tries=3 "${ALPINE_REPO}/main/${ALPINE_ARCH}/" 2>/dev/null | \
     grep -oE "linux-${KERNEL_TYPE}-[0-9][a-zA-Z0-9._-]*\.apk" | sort -V | tail -n 1) || true
 
 if [ -z "$KERNEL_PKG_NAME" ]; then
@@ -193,7 +193,7 @@ if [ -z "$KERNEL_PKG_NAME" ]; then
 fi
 
 info "Downloading kernel: ${KERNEL_PKG_NAME}..."
-wget -q --show-progress "${ALPINE_REPO}/main/${ALPINE_ARCH}/${KERNEL_PKG_NAME}" || \
+wget -q --show-progress --timeout=15 --tries=3 "${ALPINE_REPO}/main/${ALPINE_ARCH}/${KERNEL_PKG_NAME}" || \
     error "Failed to download kernel"
 
 # Extract kernel
@@ -226,11 +226,11 @@ else
     warn "No kernel modules found in package. Trying separate modules package..."
 
     # Try to download the modules package separately
-    MODULES_PKG=$(wget -qO- "${ALPINE_REPO}/main/${ALPINE_ARCH}/" 2>/dev/null | \
+    MODULES_PKG=$(wget -qO- --timeout=15 --tries=3 "${ALPINE_REPO}/main/${ALPINE_ARCH}/" 2>/dev/null | \
         grep -oE "linux-${KERNEL_TYPE}-[0-9][^\"]*\.apk" | grep -v "dev\|headers\|src" | sort -V | tail -n 1) || true
     if [ -n "$MODULES_PKG" ] && [ "$MODULES_PKG" != "$KERNEL_PKG_NAME" ]; then
         info "Downloading modules: ${MODULES_PKG}..."
-        wget -q "${ALPINE_REPO}/main/${ALPINE_ARCH}/${MODULES_PKG}" 2>/dev/null || true
+        wget -q --timeout=15 --tries=3 "${ALPINE_REPO}/main/${ALPINE_ARCH}/${MODULES_PKG}" 2>/dev/null || true
         tar -zxf "${MODULES_PKG}" 2>/dev/null || true
         if [ -d lib/modules ]; then
             cp -a lib/modules "${ROOTFS_DIR}/lib/" 2>/dev/null || true
@@ -242,10 +242,10 @@ fi
 
 # Download essential firmware (for real hardware network/storage)
 info "Downloading essential firmware..."
-FIRMWARE_PKG=$(wget -qO- "${ALPINE_REPO}/main/${ALPINE_ARCH}/" 2>/dev/null | \
+FIRMWARE_PKG=$(wget -qO- --timeout=15 --tries=3 "${ALPINE_REPO}/main/${ALPINE_ARCH}/" 2>/dev/null | \
     grep -oE 'linux-firmware-none-[0-9][a-zA-Z0-9._-]*\.apk' | sort -V | tail -n 1) || true
 if [ -n "$FIRMWARE_PKG" ]; then
-    wget -q "${ALPINE_REPO}/main/${ALPINE_ARCH}/${FIRMWARE_PKG}" 2>/dev/null || true
+    wget -q --timeout=15 --tries=3 "${ALPINE_REPO}/main/${ALPINE_ARCH}/${FIRMWARE_PKG}" 2>/dev/null || true
     tar -zxf "${FIRMWARE_PKG}" 2>/dev/null || true
     if [ -d lib/firmware ]; then
         mkdir -p "${ROOTFS_DIR}/lib/firmware"

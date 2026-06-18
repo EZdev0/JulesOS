@@ -40,6 +40,7 @@ jobs:
 
       - name: 🔧 Install musl-tools
         run: |
+          sudo rm -f /var/lib/man-db/auto-update && echo 'force-unsafe-io' | sudo tee /etc/dpkg/dpkg.cfg.d/02apt-speedup
           sudo apt-get update -qq
           sudo apt-get install -y -qq musl-tools
 
@@ -148,7 +149,7 @@ jobs:
           targets: x86_64-unknown-linux-musl
 
       - name: 🔧 Install musl-tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
+        run: sudo rm -f /var/lib/man-db/auto-update && echo 'force-unsafe-io' | sudo tee /etc/dpkg/dpkg.cfg.d/02apt-speedup && sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
 
       - name: 🧪 Run Unit Tests
         working-directory: ./jules-os
@@ -300,19 +301,27 @@ jobs:
             -A clippy::cast_sign_loss \
             -A clippy::cast_precision_loss || true
 
-      - name: 🔒 Shell Script Analysis (shellcheck)
+      - name: 🐍 Setup Python Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/tests/*.py') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: 🔒 Install Security Tools (shellcheck, pip)
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          sudo rm -f /var/lib/man-db/auto-update && echo 'force-unsafe-io' | sudo tee /etc/dpkg/dpkg.cfg.d/02apt-speedup
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck python3-pip
+          pip3 install --break-system-packages flake8 bandit
+          
+      - name: 🔒 Run Shellcheck
+        run: |
           shellcheck -x jules-os/scripts/*.sh || true
           echo "✅ Shell script analysis complete"
 
-      - name: 🐍 Python Security & Linting (flake8, bandit)
+      - name: 🐍 Run Python Linters (flake8, bandit)
         run: |
-          echo "════════════════════════════════════════"
-          echo "🐍 PYTHON ANALYSIS (Soft Mode)"
-          echo "════════════════════════════════════════"
-          sudo apt-get update -qq && sudo apt-get install -y -qq python3-pip
-          pip3 install --break-system-packages flake8 bandit
           export PATH="$HOME/.local/bin:$PATH"
           echo "Running Flake8..."
           flake8 jules-os/tests/ || true
@@ -320,12 +329,16 @@ jobs:
           bandit -r jules-os/tests/ -ll -ii || true
 
       - name: 🛡️ Trivy OS Vulnerability Scan
-        run: |
-          echo "════════════════════════════════════════"
-          echo "🛡️ TRIVY VULNERABILITY SCANNER"
-          echo "════════════════════════════════════════"
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
-          trivy fs jules-os/ --exit-code 0 --severity HIGH,CRITICAL --no-progress || true
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'jules-os/'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'HIGH,CRITICAL'
+        continue-on-error: true
 
   # ══════════════════════════════════════════════════════════════
   # ISO BUILD JOB: Generate Bootable ISO
@@ -341,6 +354,7 @@ jobs:
 
       - name: 🔧 Install ISO Build Dependencies
         run: |
+          sudo rm -f /var/lib/man-db/auto-update && echo 'force-unsafe-io' | sudo tee /etc/dpkg/dpkg.cfg.d/02apt-speedup
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
             wget tar cpio gzip xorriso pv \
