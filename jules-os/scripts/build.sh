@@ -279,7 +279,7 @@ if [ -n "$APK_STATIC_PKG" ]; then
         # Install packages into rootfs offline
         ./sbin/apk.static -X "${ALPINE_REPO}/main" -X "${ALPINE_REPO}/community" -U --allow-untrusted --root "${ROOTFS_DIR}" --initdb add \
             plymouth \
-            sway swaybg waybar alacritty \
+            sway swaybg waybar alacritty mako grim slurp wl-clipboard \
             mesa-dri-gallium mesa-egl wlroots \
             font-dejavu font-terminus \
             eudev eudev-openrc seatd dbus \
@@ -311,6 +311,12 @@ fi
 # Install init script
 install -m 755 "${JULES_DIR}/scripts/init.sh" "${ROOTFS_DIR}/init"
 ok "Init system installed to /init"
+
+# Install Recovery UI
+if [ -f "${JULES_DIR}/scripts/recovery_ui.sh" ]; then
+    install -m 755 "${JULES_DIR}/scripts/recovery_ui.sh" "${ROOTFS_DIR}/bin/recovery_ui.sh"
+    ok "Recovery UI installed to /bin/recovery_ui.sh"
+fi
 
 # Create essential directory structure (FHS-compliant)
 mkdir -p "${ROOTFS_DIR}/home/jules"
@@ -368,6 +374,54 @@ EOF_OSRELEASE
 
 # Create /etc/motd (Message of the Day)
 cat > "${ROOTFS_DIR}/etc/motd" << 'EOF_MOTD'
+Welcome to JulesOS (Immutable Shell)
+Type 'help' to see available commands.
+EOF_MOTD
+
+# Set up sleek Sway & Waybar configurations
+mkdir -p "${ROOTFS_DIR}/etc/skel/.config/sway"
+mkdir -p "${ROOTFS_DIR}/etc/skel/.config/waybar"
+mkdir -p "${ROOTFS_DIR}/home/jules/.config/sway"
+mkdir -p "${ROOTFS_DIR}/home/jules/.config/waybar"
+
+cat > "${ROOTFS_DIR}/etc/skel/.config/sway/config" << 'EOF_SWAY'
+# JulesOS Sway Configuration (Sleek & Animated)
+# Force software rendering fallback if QEMU/Limbo has no 3D acceleration
+set $mod Mod4
+# Aesthetics
+default_border pixel 2
+client.focused #4c7899 #285577 #ffffff #2e9ef4 #285577
+gaps inner 10
+gaps outer 5
+smart_gaps on
+# Animations (Sway default transitions)
+exec mako
+exec waybar
+# Inputs & Output
+output * bg #1a1a1a solid_color
+# Keybinds
+bindsym $mod+Return exec alacritty
+bindsym $mod+Shift+q kill
+bindsym $mod+d exec jules_shell
+bindsym $mod+Shift+e exec "echo 'Crash Handler Test' && killall -SIGSEGV jules_shell"
+EOF_SWAY
+
+cat > "${ROOTFS_DIR}/etc/skel/.config/waybar/config" << 'EOF_WAYBAR'
+{
+    "layer": "top",
+    "position": "top",
+    "height": 30,
+    "modules-left": ["sway/workspaces", "sway/mode"],
+    "modules-center": ["sway/window"],
+    "modules-right": ["cpu", "memory", "clock"],
+    "clock": { "format": "{:%H:%M - %A, %d. %b}" },
+    "cpu": { "format": "{usage}% " },
+    "memory": { "format": "{}% " }
+}
+EOF_WAYBAR
+
+cp -r "${ROOTFS_DIR}/etc/skel/.config/"* "${ROOTFS_DIR}/home/jules/.config/" 2>/dev/null || true
+chown -R 1000:1000 "${ROOTFS_DIR}/home/jules/.config" 2>/dev/null || true
 
   ╔═══════════════════════════════════════════════════╗
   ║            Welcome to Jules OS v1.0.0             ║

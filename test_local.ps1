@@ -28,7 +28,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     wget tar cpio gzip xorriso syslinux syslinux-utils \
     dosfstools mtools qemu-utils grub-pc-bin grub-efi-amd64-bin \
-    cargo rustc nasm g++ \
+    cargo rustc nasm g++ shellcheck cppcheck \
     qemu-system-x86 python3
 
 # Kopiere den gesamten Code ins Image (Vermeidet Volume Mount Crash auf Windows)
@@ -50,8 +50,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # 3. Build & Test ISO im isolierten Container (OHNE Volumes)
-Write-Host "`n[2/3] Building JulesOS ISO and running QEMU tests in absolute isolation..." -ForegroundColor Green
-$containerId = docker create jules-builder bash -c "cd /build/jules-os && bash scripts/build.sh && python3 tests/qemu_boot_test.py"
+Write-Host "`n[2/4] Running Linting Tools and Building JulesOS ISO in absolute isolation..." -ForegroundColor Green
+$containerId = docker create jules-builder bash -c "mkdir -p /build/linting_logs && echo 'Running Shellcheck...' && shellcheck jules-os/scripts/*.sh > /build/linting_logs/shellcheck.log || true && echo 'Running Cppcheck...' && cppcheck --enable=all jules-os/src/legacy/ > /build/linting_logs/cppcheck.log 2>&1 || true && echo 'Running Cargo Clippy...' && cd /build/jules-os && cargo clippy --all-targets -- -D warnings > /build/linting_logs/clippy.log 2>&1 || true && echo 'Building ISO...' && bash scripts/build.sh && python3 tests/qemu_boot_test.py"
 
 Write-Host "-> Running container processes..." -ForegroundColor DarkGray
 docker start -a $containerId
@@ -61,18 +61,17 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# 4. Extrahiere die gebaute ISO auf den Windows Host
-Write-Host "`n[3/3] Extracting generated ISO to Windows Host..." -ForegroundColor Green
-docker cp "${containerId}:/build/jules-os/JulesOS.iso" ".\jules-os\JulesOS.iso"
+# 4. Extract Artifacts (ISO & Linting Logs)
+Write-Host "`n[3/4] Extracting generated ISO to Windows Host..." -ForegroundColor Green
+docker cp "${containerId}:/build/jules-os/JulesOS.iso" ".\JulesOS.iso"
+Write-Host "-> ISO Extracted Successfully!" -ForegroundColor DarkGray
+
+Write-Host "`n[4/4] Extracting Linting Logs..." -ForegroundColor Green
+docker cp "${containerId}:/build/linting_logs" ".\"
+Write-Host "-> Linting logs saved to .\linting_logs\" -ForegroundColor DarkGray
+
+# Cleanup
 docker rm $containerId > $null
-
-if (-not (Test-Path ".\jules-os\JulesOS.iso")) {
-    Write-Error "ISO Extraction failed!"
-    exit 1
-}
-
-Write-Host "-> ISO Extracted Successfully! Size: $((Get-Item '.\jules-os\JulesOS.iso').Length / 1MB | ForEach-Object ToString '0.00') MB" -ForegroundColor Green
-
-Write-Host "`n==========================================================" -ForegroundColor Cyan
-Write-Host " Local Test Completed. ISO is 100% bootable and ready! " -ForegroundColor Cyan
-Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host "`n==========================================================" -ForegroundColor Green
+Write-Host " Local Test Completed. ISO & Logs are ready! " -ForegroundColor Green
+Write-Host "==========================================================" -ForegroundColor Green

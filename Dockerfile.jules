@@ -3,7 +3,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     wget tar cpio gzip xorriso syslinux syslinux-utils \
     dosfstools mtools qemu-utils grub-pc-bin grub-efi-amd64-bin \
-    cargo rustc nasm g++ \
+    cargo rustc nasm g++ shellcheck cppcheck \
     qemu-system-x86 python3
 
 # Kopiere den gesamten Code ins Image (Vermeidet Volume Mount Crash auf Windows)

@@ -116,6 +116,40 @@ fn get_prompt() -> String {
     )
 }
 
+fn setup_crash_handler() {
+    std::panic::set_hook(Box::new(|info| {
+        let payload = info.payload();
+        let msg = match payload.downcast_ref::<&'static str>() {
+            Some(s) => *s,
+            None => match payload.downcast_ref::<String>() {
+                Some(s) => &s[..],
+                None => "Box<dyn Any>",
+            },
+        };
+        
+        let location = info.location().map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column())).unwrap_or_else(|| "unknown".to_string());
+        
+        let crash_log = format!(
+            "JULES OS CRASH REPORT\n\nError: {}\nLocation: {}\n\nSystem halted to prevent Kernel Panic.",
+            msg, location
+        );
+        
+        // Write to Desktop
+        let desktop_path = "/home/jules/Desktop";
+        let _ = std::fs::create_dir_all(desktop_path);
+        let _ = std::fs::write(format!("{}/CRASH_REPORT.log", desktop_path), crash_log);
+        
+        // Launch Recovery UI
+        println!("\n\n\x1b[1;31m[CRITICAL ERROR] Jules Shell has panicked!\x1b[0m");
+        println!("Launching Recovery Interface...");
+        
+        let _ = std::process::Command::new("/bin/recovery_ui.sh").status();
+        
+        // Hang forever to prevent Kernel Panic
+        loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
+    }));
+}
+
 /// Main entry point.
 ///
 /// Supports three modes:
@@ -123,6 +157,8 @@ fn get_prompt() -> String {
 /// 2. **Direct args**: `jules_shell command arg1 arg2` — execute and exit
 /// 3. **Interactive**: `jules_shell` — enter the REPL loop
 fn main() {
+    setup_crash_handler();
+    
     // Install PID 1 signal handlers (always, even if not PID 1)
     install_signal_handlers();
 
