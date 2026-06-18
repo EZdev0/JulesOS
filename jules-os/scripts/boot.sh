@@ -13,7 +13,8 @@ echo "================================================"
 if [ ! -f "${ISO_PATH}" ]; then
     echo "[!] Error: JulesOS.iso not found! Run ./scripts/build.sh first."
     # do not exit, just return
-    return 1 2>/dev/null || true
+    # shellcheck disable=SC2317
+    return 1 2>/dev/null || exit 1
 fi
 
 # Create a persistent data vault if it doesn't exist
@@ -51,6 +52,7 @@ echo "------------------------------------------------"
 
 # Run QEMU Headless (ncurses/serial) for Termux compatibility
 # -nographic maps the serial console directly to the terminal
+# shellcheck disable=SC2086
 $QEMU_CMD $ACCEL \
     -m ${RAM_SIZE} \
     -smp ${CORES} \

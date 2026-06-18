@@ -350,13 +350,14 @@ void execute_external(const std::string& cmd) {
 
     std::vector<char*> c_args;
     c_args.reserve(args.size() + 1);
-    for (auto& arg : args) c_args.push_back(&arg[0]);
+    for (auto& arg : args) { if (!arg.empty()) c_args.push_back(&arg[0]); }
     c_args.push_back(nullptr);
 
     pid_t pid = fork();
     if (pid == -1) {
         std::cerr << COLOR_RED << "Failed to fork" << COLOR_RESET << std::endl;
     } else if (pid == 0) {
+        if (c_args.empty() || c_args[0] == nullptr) exit(1);
         execvp(c_args[0], c_args.data());
         std::cerr << COLOR_RED << "Failed to execute: " << c_args[0] << COLOR_RESET << std::endl;
         exit(127);

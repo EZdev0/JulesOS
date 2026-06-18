@@ -43,7 +43,7 @@ std::string get_prompt() {
     return BOLD + FG_MAGENTA + "❯ " + RESET;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, const char* argv[]) {
     // Check for -c flag (standard shell behavior)
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
