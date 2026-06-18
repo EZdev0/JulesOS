@@ -1,0 +1,185 @@
+//! System-level operations for Jules OS.
+//!
+//! Provides safe wrappers for reading/writing procfs, sysfs,
+//! kernel info, and hardware detection.
+
+use std::collections::HashMap;
+use std::fs;
+use std::io::{self, BufRead};
+use std::path::Path;
+
+/// Get the kernel release string via uname(2).
+pub fn get_kernel_release() -> String {
+    match nix::sys::utsname::uname() {
+        Ok(info) => info.release().to_string_lossy().into_owned(),
+        Err(_) => "unknown".to_string(),
+    }
+}
+
+/// Get the system hostname.
+pub fn get_hostname() -> String {
+    match nix::unistd::gethostname() {
+        Ok(name) => name.to_string_lossy().into_owned(),
+        Err(_) => "JulesOS".to_string(),
+    }
+}
+
+/// Parse /proc/meminfo into a HashMap of key → value (in bytes).
+///
+/// Values in /proc/meminfo are in kB, so we multiply by 1024.
+pub fn get_mem_info() -> HashMap<String, u64> {
+    let mut mem_data = HashMap::new();
+
+    let file = match fs::File::open("/proc/meminfo") {
+        Ok(f) => f,
+        Err(_) => return mem_data,
+    };
+
+    let reader = io::BufReader::new(file);
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+
+        if let Some(colon_pos) = line.find(':') {
+            let key = line[..colon_pos].trim().to_string();
+            let val_str = &line[colon_pos + 1..];
+
+            // Extract numeric value (strip " kB" suffix)
+            let val_str = val_str.trim();
+            let numeric_str = if let Some(kb_pos) = val_str.find(" kB") {
+                &val_str[..kb_pos]
+            } else {
+                val_str
+            };
+
+            if let Ok(value) = numeric_str.trim().parse::<u64>() {
+                // /proc/meminfo values are in kB
+                mem_data.insert(key, value * 1024);
+            }
+        }
+    }
+
+    mem_data
+}
+
+/// Get disk usage information for a given path.
+///
+/// Returns (total, used, available, usage_percent) in bytes.
+pub fn get_disk_usage(path: &str) -> Option<(u64, u64, u64, f64)> {
+    let stat = match nix::sys::statvfs::statvfs(path) {
+        Ok(s) => s,
+        Err(_) => return None,
+    };
+
+    let total = stat.blocks() * stat.fragment_size();
+    let free = stat.blocks_free() * stat.fragment_size();
+    let available = stat.blocks_available() * stat.fragment_size();
+    let used = total - free;
+    let usage_pct = if total > 0 {
+        (used as f64) * 100.0 / (total as f64)
+    } else {
+        0.0
+    };
+
+    Some((total, used, available, usage_pct))
+}
+
+/// Get system uptime from /proc/uptime.
+///
+/// Returns (days, hours, minutes).
+pub fn get_uptime() -> Option<(u64, u64, u64)> {
+    let content = fs::read_to_string("/proc/uptime").ok()?;
+    let seconds: f64 = content.split_whitespace().next()?.parse().ok()?;
+    let total_secs = seconds as u64;
+
+    let days = total_secs / 86400;
+    let hours = (total_secs % 86400) / 3600;
+    let minutes = (total_secs % 3600) / 60;
+
+    Some((days, hours, minutes))
+}
+
+/// Write a value to a sysfs/procfs path.
+///
+/// Silently fails if the path doesn't exist or isn't writable.
+pub fn write_sysfs(path: &str, value: &str) {
+    let _ = fs::write(path, format!("{value}\n"));
+}
+
+/// Read the contents of a file, returning an empty string on failure.
+pub fn read_file(path: &str) -> String {
+    fs::read_to_string(path).unwrap_or_default()
+}
+
+/// Format a byte count into a human-readable string.
+///
+/// Uses binary prefixes (KiB, MiB, GiB, TiB).
+pub fn format_bytes(bytes: u64) -> String {
+    const UNITS: &[&str] = &["B", "KiB", "MiB", "GiB", "TiB"];
+    let mut size = bytes as f64;
+    let mut unit_idx = 0;
+
+    while size >= 1024.0 && unit_idx < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_idx += 1;
+    }
+
+    format!("{size:.1}{}", UNITS[unit_idx])
+}
+
+/// Find the first existing executable in a list of paths.
+///
+/// Falls back to the basename if none found.
+pub fn find_executable(candidates: &[&str], fallback: &str) -> String {
+    for path in candidates {
+        if Path::new(path).exists() {
+            return path.to_string();
+        }
+    }
+    fallback.to_string()
+}
+
+/// Get the current working directory as a string.
+pub fn get_cwd() -> String {
+    std::env::current_dir()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "/".to_string())
+}
+
+// ── Unit Tests ────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_bytes() {
+        assert_eq!(format_bytes(0), "0.0B");
+        assert_eq!(format_bytes(1023), "1023.0B");
+        assert_eq!(format_bytes(1024), "1.0KiB");
+        assert_eq!(format_bytes(1536), "1.5KiB");
+        assert_eq!(format_bytes(1048576), "1.0MiB");
+        assert_eq!(format_bytes(1073741824), "1.0GiB");
+        assert_eq!(format_bytes(1099511627776), "1.0TiB");
+    }
+
+    #[test]
+    fn test_get_kernel_release() {
+        let release = get_kernel_release();
+        assert!(!release.is_empty());
+    }
+
+    #[test]
+    fn test_find_executable_fallback() {
+        let result = find_executable(&["/nonexistent/path"], "fallback");
+        assert_eq!(result, "fallback");
+    }
+
+    #[test]
+    fn test_get_cwd() {
+        let cwd = get_cwd();
+        assert!(!cwd.is_empty());
+    }
+}

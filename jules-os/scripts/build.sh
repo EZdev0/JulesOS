@@ -49,8 +49,8 @@ fi
 # ── Dependency Checks ─────────────────────────────────────────
 step "Step 0/8: Checking Build Dependencies"
 
-REQUIRED_CMDS="wget tar cpio gzip cmake make gcc g++"
-OPTIONAL_CMDS="xorriso mtools grub-mkrescue"
+REQUIRED_CMDS="wget tar cpio gzip"
+OPTIONAL_CMDS="cargo xorriso mtools grub-mkrescue"
 
 for cmd in $REQUIRED_CMDS; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -81,26 +81,54 @@ rm -rf "${BUILD_DIR}" "${ISO_DIR}"
 mkdir -p "${BUILD_DIR}" "${ISO_DIR}/boot/grub" "${ISO_DIR}/boot/syslinux" "${ROOTFS_DIR}"
 ok "Build environment cleaned."
 
-# ── Step 2: Compile Jules Shell ───────────────────────────────
-step "Step 2/8: Compiling Jules Shell (C++ Core)"
+# ── Step 2: Compile Jules Shell (Rust) ────────────────────────
+step "Step 2/8: Compiling Jules Shell (Rust Core)"
 
-cd "${BUILD_DIR}"
+cd "${JULES_DIR}"
 
-# Detect static linking support
-if [ "$IS_TERMUX" -eq 1 ]; then
-    STATIC_OPT="-DSTATIC_BUILD=OFF"
-elif ld --help 2>&1 | grep -q "static"; then
-    STATIC_OPT="-DSTATIC_BUILD=ON"
+# Check if Rust toolchain is available
+if command -v cargo >/dev/null 2>&1; then
+    info "Rust toolchain detected: $(rustc --version 2>/dev/null || echo 'unknown')"
+
+    # Try cross-compilation for static musl binary (ideal for OS)
+    RUST_TARGET="x86_64-unknown-linux-musl"
+    BINARY_PATH=""
+
+    if command -v cross >/dev/null 2>&1; then
+        info "Using 'cross' for static musl build..."
+        cross build --release --target "${RUST_TARGET}" && \
+            BINARY_PATH="target/${RUST_TARGET}/release/jules_shell"
+    elif rustup target list --installed 2>/dev/null | grep -q "${RUST_TARGET}"; then
+        info "Building with musl target..."
+        cargo build --release --target "${RUST_TARGET}" && \
+            BINARY_PATH="target/${RUST_TARGET}/release/jules_shell"
+    fi
+
+    # Fallback: build for host target
+    if [ -z "$BINARY_PATH" ] || [ ! -f "$BINARY_PATH" ]; then
+        info "Building for host target (dynamic linking)..."
+        cargo build --release || error "Rust compilation failed"
+        BINARY_PATH="target/release/jules_shell"
+    fi
+
+    # Copy binary to build directory
+    mkdir -p "${BUILD_DIR}"
+    cp "${BINARY_PATH}" "${BUILD_DIR}/jules_shell" || error "Failed to copy binary"
+    chmod +x "${BUILD_DIR}/jules_shell"
+
+elif [ -f "${BUILD_DIR}/jules_shell" ]; then
+    # Pre-compiled binary exists (e.g., from CI artifact)
+    warn "Rust not installed. Using pre-compiled binary from ${BUILD_DIR}/"
+
 else
-    STATIC_OPT="-DSTATIC_BUILD=OFF"
+    error "Rust toolchain not found! Install with: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
 fi
 
-cmake ${STATIC_OPT} "${JULES_DIR}" || error "CMake configuration failed"
-make -j"$(nproc)" || error "C++ compilation failed"
 cd "${JULES_DIR}"
 
 ok "Jules Shell compiled successfully."
 info "Binary: $(ls -lh "${BUILD_DIR}/jules_shell" | awk '{print $5}')"
+info "Type: $(file "${BUILD_DIR}/jules_shell" 2>/dev/null | cut -d: -f2 | head -c80)"
 
 # ── Step 3: Download Alpine Minirootfs ────────────────────────
 step "Step 3/8: Downloading Alpine Linux RootFS"
