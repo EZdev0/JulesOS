@@ -9,9 +9,10 @@ use std::path::Path;
 
 /// Get the kernel release string via procfs.
 pub fn get_kernel_release() -> String {
-    fs::read_to_string("/proc/sys/kernel/osrelease")
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|_| "unknown".to_string())
+    fs::read_to_string("/proc/sys/kernel/osrelease").map_or_else(
+        |_| "unknown".to_string(),
+        |s| s.trim().to_string(),
+    )
 }
 
 /// Parse /proc/meminfo into a HashMap of key → value (in bytes).
@@ -20,17 +21,11 @@ pub fn get_kernel_release() -> String {
 pub fn get_mem_info() -> HashMap<String, u64> {
     let mut mem_data = HashMap::new();
 
-    let file = match fs::File::open("/proc/meminfo") {
-        Ok(f) => f,
-        Err(_) => return mem_data,
-    };
+    let Ok(file) = fs::File::open("/proc/meminfo") else { return mem_data };
 
     let reader = io::BufReader::new(file);
     for line in reader.lines() {
-        let line = match line {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
+        let Ok(line) = line else { continue };
 
         if let Some(colon_pos) = line.find(':') {
             let key = line[..colon_pos].trim().to_string();
@@ -58,10 +53,7 @@ pub fn get_mem_info() -> HashMap<String, u64> {
 ///
 /// Returns (total, used, available, usage_percent) in bytes.
 pub fn get_disk_usage(path: &str) -> Option<(u64, u64, u64, f64)> {
-    let stat = match nix::sys::statvfs::statvfs(path) {
-        Ok(s) => s,
-        Err(_) => return None,
-    };
+    let Ok(stat) = nix::sys::statvfs::statvfs(path) else { return None };
 
     let total = stat.blocks() * stat.fragment_size();
     let free = stat.blocks_free() * stat.fragment_size();
@@ -128,9 +120,10 @@ pub fn find_executable(candidates: &[&str], fallback: &str) -> String {
 
 /// Get the current working directory as a string.
 pub fn get_cwd() -> String {
-    std::env::current_dir()
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|_| "/".to_string())
+    std::env::current_dir().map_or_else(
+        |_| "/".to_string(),
+        |p| p.to_string_lossy().into_owned(),
+    )
 }
 
 // ── Unit Tests ────────────────────────────────────────────────
@@ -145,9 +138,9 @@ mod tests {
         assert_eq!(format_bytes(1023), "1023.0B");
         assert_eq!(format_bytes(1024), "1.0KiB");
         assert_eq!(format_bytes(1536), "1.5KiB");
-        assert_eq!(format_bytes(1048576), "1.0MiB");
-        assert_eq!(format_bytes(1073741824), "1.0GiB");
-        assert_eq!(format_bytes(1099511627776), "1.0TiB");
+        assert_eq!(format_bytes(1_048_576), "1.0MiB");
+        assert_eq!(format_bytes(1_073_741_824), "1.0GiB");
+        assert_eq!(format_bytes(1_099_511_627_776), "1.0TiB");
     }
 
     #[test]

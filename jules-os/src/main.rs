@@ -29,7 +29,7 @@ mod commands;
 mod jrd;
 mod system;
 
-use colors::*;
+use colors::{CYAN, BOLD, RESET, MAGENTA, YELLOW, GREEN, BLUE};
 use std::io::{self, BufRead, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -50,9 +50,8 @@ fn install_signal_handlers() {
             // Reap all terminated children (non-blocking)
             loop {
                 match nix::sys::wait::waitpid(None, Some(nix::sys::wait::WaitPidFlag::WNOHANG)) {
-                    Ok(nix::sys::wait::WaitStatus::StillAlive) => break,
+                    Ok(nix::sys::wait::WaitStatus::StillAlive) | Err(_) => break,
                     Ok(_) => continue, // Reaped a zombie, check for more
-                    Err(_) => break,   // No more children
                 }
             }
         })
@@ -104,7 +103,7 @@ fn print_banner() {
 fn get_prompt() -> String {
     let cwd = system::get_cwd();
     let display_dir = if let Some(stripped) = cwd.strip_prefix("/home") {
-        format!("~{}", stripped)
+        format!("~{stripped}")
     } else {
         cwd
     };
@@ -127,18 +126,16 @@ fn setup_crash_handler() {
 
         let location = info
             .location()
-            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
-            .unwrap_or_else(|| "unknown".to_string());
+            .map_or_else(|| "unknown".to_string(), |l| format!("{}:{}:{}", l.file(), l.line(), l.column()));
 
         let crash_log = format!(
-            "JULES OS CRASH REPORT\n\nError: {}\nLocation: {}\n\nSystem halted to prevent Kernel Panic.",
-            msg, location
+            "JULES OS CRASH REPORT\n\nError: {msg}\nLocation: {location}\n\nSystem halted to prevent Kernel Panic."
         );
 
         // Write to Desktop
         let desktop_path = "/home/jules/Desktop";
         let _ = std::fs::create_dir_all(desktop_path);
-        let _ = std::fs::write(format!("{}/CRASH_REPORT.log", desktop_path), crash_log);
+        let _ = std::fs::write(format!("{desktop_path}/CRASH_REPORT.log"), crash_log);
 
         // Launch Recovery UI
         println!("\n\n\x1b[1;31m[CRITICAL ERROR] Jules Shell has panicked!\x1b[0m");
@@ -148,7 +145,7 @@ fn setup_crash_handler() {
 
         // Hang forever to prevent Kernel Panic
         loop {
-            std::thread::sleep(std::time::Duration::from_secs(60));
+            std::thread::sleep(std::time::Duration::from_mins(1));
         }
     }));
 }
@@ -194,7 +191,7 @@ fn main() {
         if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
             println!("\n{YELLOW}[PID 1] Received shutdown signal. Halting gracefully...{RESET}");
             loop {
-                std::thread::sleep(std::time::Duration::from_secs(60));
+                std::thread::sleep(std::time::Duration::from_mins(1));
             }
         }
 
@@ -203,7 +200,7 @@ fn main() {
         if io::stdout().flush().is_err() {
             println!("\n[PID 1] stdout flush error. Idling...");
             loop {
-                std::thread::sleep(std::time::Duration::from_secs(60));
+                std::thread::sleep(std::time::Duration::from_mins(1));
             }
         }
 
@@ -214,7 +211,7 @@ fn main() {
                 // EOF (Ctrl+D) or headless mode without a TTY
                 println!("\n[PID 1] Shell input closed. Idling to prevent Kernel Panic...");
                 loop {
-                    std::thread::sleep(std::time::Duration::from_secs(60));
+                    std::thread::sleep(std::time::Duration::from_mins(1));
                 }
             }
             Ok(_) => {
@@ -225,7 +222,7 @@ fn main() {
                 if trimmed == "exit" {
                     println!("\n[PID 1] Halting system...");
                     loop {
-                        std::thread::sleep(std::time::Duration::from_secs(60));
+                        std::thread::sleep(std::time::Duration::from_mins(1));
                     }
                 }
                 commands::execute_command(trimmed);
@@ -233,7 +230,7 @@ fn main() {
             Err(_) => {
                 println!("\n[PID 1] Stdin error. Idling...");
                 loop {
-                    std::thread::sleep(std::time::Duration::from_secs(60));
+                    std::thread::sleep(std::time::Duration::from_mins(1));
                 }
             }
         }

@@ -77,7 +77,7 @@ pub fn start_daemon() {
 
             // Handle suspended processes (cooldown)
             let mut to_resume = Vec::new();
-            for (pid, cycles) in suspended_pids.iter_mut() {
+            for (pid, cycles) in &mut suspended_pids {
                 *cycles += CHECK_INTERVAL_SECS;
                 if *cycles >= COOLDOWN_SECS {
                     to_resume.push(*pid);
@@ -86,8 +86,7 @@ pub fn start_daemon() {
 
             for pid in to_resume {
                 println!(
-                    "\x1b[1;32m[JRD] Resuming PID {} (Cooldown complete).\x1b[0m",
-                    pid
+                    "\x1b[1;32m[JRD] Resuming PID {pid} (Cooldown complete).\x1b[0m"
                 );
                 let _ = Command::new("kill")
                     .arg("-SIGCONT")
@@ -118,7 +117,7 @@ fn get_system_ticks() -> u64 {
 }
 
 fn get_process_ticks(pid: u32) -> u64 {
-    let path = format!("/proc/{}/stat", pid);
+    let path = format!("/proc/{pid}/stat");
     if let Ok(stat) = fs::read_to_string(&path) {
         let parts: Vec<&str> = stat.split_whitespace().collect();
         // stat format: utime is 14th (index 13), stime is 15th (index 14)

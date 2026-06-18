@@ -3,7 +3,7 @@
 //! Each command is implemented as a standalone function.
 //! The `execute_command` function dispatches based on user input.
 
-use crate::colors::*;
+use crate::colors::{CYAN, BOLD, RESET, YELLOW, BLUE, GREEN, MAGENTA, print_error, RED};
 use crate::system;
 use std::ffi::CString;
 use std::io::{self, Write};
@@ -39,7 +39,9 @@ pub fn show_status() {
     // Memory info
     println!("{GREEN}Memory Usage:{RESET}");
     let mem = system::get_mem_info();
-    if !mem.is_empty() {
+    if mem.is_empty() {
+        execute_external("free -h");
+    } else {
         let total = *mem.get("MemTotal").unwrap_or(&0);
         let free = *mem.get("MemFree").unwrap_or(&0);
         let buffers = *mem.get("Buffers").unwrap_or(&0);
@@ -62,8 +64,6 @@ pub fn show_status() {
             system::format_bytes(buff_cache),
             system::format_bytes(available),
         );
-    } else {
-        execute_external("free -h");
     }
 
     // Disk info
@@ -257,10 +257,7 @@ pub fn execute_external(cmd: &str) {
 
     // Reject excessively long commands
     if cmd.len() > MAX_COMMAND_LENGTH {
-        print_error(&format!(
-            "Command too long (max {} chars)",
-            MAX_COMMAND_LENGTH
-        ));
+        print_error(&format!("Command too long (max {MAX_COMMAND_LENGTH} chars)"));
         return;
     }
 
@@ -285,16 +282,13 @@ pub fn execute_external(cmd: &str) {
     }
 
     // Convert to CStrings for execvp
-    let c_args: Vec<CString> = match args
+    let Ok(c_args) = args
         .iter()
         .map(|s| CString::new(s.as_str()))
-        .collect::<Result<Vec<_>, _>>()
-    {
-        Ok(v) => v,
-        Err(_) => {
-            print_error("Invalid command (contains null bytes)");
-            return;
-        }
+        .collect::<Result<Vec<CString>, _>>()
+    else {
+        print_error("Invalid command (contains null bytes)");
+        return;
     };
 
     // Fork and exec
@@ -359,7 +353,7 @@ fn parse_command(cmd: &str) -> Vec<String> {
     args
 }
 
-/// Close all file descriptors >= start_fd.
+/// Close all file descriptors >= `start_fd`.
 ///
 /// This prevents leaking open FDs to child processes (security).
 fn close_fds_above(start_fd: i32) {
