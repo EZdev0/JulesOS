@@ -105,11 +105,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq cmake g++ make
 
-      - name: 📥 Download Jules Shell
-        uses: actions/download-artifact@v4
-        with:
-          name: jules-shell-binary
-          path: ./jules-os/build/
+
 
       - name: 🧪 Component Tests
         working-directory: ./jules-os
@@ -117,10 +113,15 @@ jobs:
           echo "================================================"
           echo "🧪 COMPONENT TESTS"
           echo "================================================"
+          mkdir -p build
+          cd build
+          cmake -DSTATIC_BUILD=OFF .. || (echo "CMake configuration failed" && exit 1)
+          make -j$(nproc) || (echo "Compilation failed" && exit 1)
+          cd ..
           chmod +x build/jules_shell
           ls -la build/jules_shell
           ldd build/jules_shell || true
-          ./build/jules_shell -c "help" || echo "Help failed"
+          ./build/jules_shell -c "help" || true
           
           PASS=0
           FAIL=0
@@ -340,11 +341,7 @@ jobs:
             cmake g++ make wget tar cpio gzip xorriso \
             syslinux syslinux-utils dosfstools mtools qemu-utils
 
-      - name: 📥 Download Jules Shell
-        uses: actions/download-artifact@v4
-        with:
-          name: jules-shell-binary
-          path: ./jules-os/build/
+
 
       - name: 🏗️ Build ISO Image
         working-directory: ./jules-os
@@ -356,7 +353,8 @@ jobs:
           chmod +x build/jules_shell
           ls -la build/jules_shell
           ldd build/jules_shell || true
-          ./build/jules_shell -c "help" || echo "Help failed"
+          chmod +x ./build/jules_shell
+          ./build/jules_shell -c "help" || true
           chmod +x scripts/*.sh
           
           echo ""
