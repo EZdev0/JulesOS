@@ -342,7 +342,7 @@ echo ""
 
 if [ -x /bin/jules_shell ]; then
     echo "[ OK ] Handing over control to Jules Shell (Rust Core)..."
-    exec /bin/jules_shell
+    exec /bin/jules_shell --auto-desktop
 else
     # Crashscreen & Notfall-Shell (Abwehr von Kernel Panic)
     clear

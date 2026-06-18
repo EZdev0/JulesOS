@@ -28,6 +28,7 @@ mod colors;
 mod commands;
 mod jrd;
 mod system;
+mod watchdog;
 
 use colors::{CYAN, BOLD, RESET, MAGENTA, YELLOW, GREEN, BLUE};
 use std::io::{self, BufRead, Write};
@@ -159,6 +160,7 @@ fn setup_crash_handler() {
 fn main() {
     setup_crash_handler();
     jrd::start_daemon();
+    watchdog::start_watchdog();
 
     // Install PID 1 signal handlers (always, even if not PID 1)
     install_signal_handlers();
@@ -176,6 +178,13 @@ fn main() {
         let cmd = args[1..].join(" ");
         commands::execute_command(&cmd);
         return;
+    }
+
+    // Mode 4: Auto Desktop (Fallback to REPL if it fails)
+    if args.contains(&"--auto-desktop".to_string()) {
+        println!("{YELLOW}[PID 1] Attempting Auto-Boot into Wayland Desktop...{RESET}");
+        commands::run_desktop();
+        println!("{YELLOW}[PID 1] Desktop session ended. Falling back to recovery shell...{RESET}");
     }
 
     // Mode 3: Interactive shell (REPL)
