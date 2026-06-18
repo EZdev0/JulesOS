@@ -26,8 +26,8 @@
 
 mod colors;
 mod commands;
-mod system;
 mod jrd;
+mod system;
 
 use colors::*;
 use std::io::{self, BufRead, Write};
@@ -49,10 +49,7 @@ fn install_signal_handlers() {
         signal_hook::low_level::register(signal_hook::consts::SIGCHLD, || {
             // Reap all terminated children (non-blocking)
             loop {
-                match nix::sys::wait::waitpid(
-                    None,
-                    Some(nix::sys::wait::WaitPidFlag::WNOHANG),
-                ) {
+                match nix::sys::wait::waitpid(None, Some(nix::sys::wait::WaitPidFlag::WNOHANG)) {
                     Ok(nix::sys::wait::WaitStatus::StillAlive) => break,
                     Ok(_) => continue, // Reaped a zombie, check for more
                     Err(_) => break,   // No more children
@@ -127,27 +124,32 @@ fn setup_crash_handler() {
                 None => "Box<dyn Any>",
             },
         };
-        
-        let location = info.location().map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column())).unwrap_or_else(|| "unknown".to_string());
-        
+
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "unknown".to_string());
+
         let crash_log = format!(
             "JULES OS CRASH REPORT\n\nError: {}\nLocation: {}\n\nSystem halted to prevent Kernel Panic.",
             msg, location
         );
-        
+
         // Write to Desktop
         let desktop_path = "/home/jules/Desktop";
         let _ = std::fs::create_dir_all(desktop_path);
         let _ = std::fs::write(format!("{}/CRASH_REPORT.log", desktop_path), crash_log);
-        
+
         // Launch Recovery UI
         println!("\n\n\x1b[1;31m[CRITICAL ERROR] Jules Shell has panicked!\x1b[0m");
         println!("Launching Recovery Interface...");
-        
+
         let _ = std::process::Command::new("/bin/recovery_ui.sh").status();
-        
+
         // Hang forever to prevent Kernel Panic
-        loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(60));
+        }
     }));
 }
 
@@ -160,7 +162,7 @@ fn setup_crash_handler() {
 fn main() {
     setup_crash_handler();
     jrd::start_daemon();
-    
+
     // Install PID 1 signal handlers (always, even if not PID 1)
     install_signal_handlers();
 
@@ -190,17 +192,19 @@ fn main() {
     loop {
         // Check if shutdown was requested (by signal handler)
         if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
-            println!(
-                "\n{YELLOW}[PID 1] Received shutdown signal. Halting gracefully...{RESET}"
-            );
-            loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
+            println!("\n{YELLOW}[PID 1] Received shutdown signal. Halting gracefully...{RESET}");
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            }
         }
 
         // Print prompt
         print!("{}", get_prompt());
         if io::stdout().flush().is_err() {
             println!("\n[PID 1] stdout flush error. Idling...");
-            loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            }
         }
 
         // Read input
@@ -209,7 +213,9 @@ fn main() {
             Ok(0) => {
                 // EOF (Ctrl+D) or headless mode without a TTY
                 println!("\n[PID 1] Shell input closed. Idling to prevent Kernel Panic...");
-                loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(60));
+                }
             }
             Ok(_) => {
                 let trimmed = input.trim();
@@ -218,13 +224,17 @@ fn main() {
                 }
                 if trimmed == "exit" {
                     println!("\n[PID 1] Halting system...");
-                    loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
+                    loop {
+                        std::thread::sleep(std::time::Duration::from_secs(60));
+                    }
                 }
                 commands::execute_command(trimmed);
             }
             Err(_) => {
                 println!("\n[PID 1] Stdin error. Idling...");
-                loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(60));
+                }
             }
         }
     }

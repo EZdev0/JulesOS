@@ -50,7 +50,9 @@ pub fn show_status() {
         let used = total.saturating_sub(free).saturating_sub(buff_cache);
         let available = *mem.get("MemAvailable").unwrap_or(&(free + buff_cache));
 
-        println!("               total        used        free      shared  buff/cache   available");
+        println!(
+            "               total        used        free      shared  buff/cache   available"
+        );
         println!(
             "Mem:    {:>12}{:>12}{:>12}{:>12}{:>12}{:>12}",
             system::format_bytes(total),
@@ -128,7 +130,9 @@ pub fn run_fetch() {
         let buffers = *mem.get("Buffers").unwrap_or(&0);
         let cached = *mem.get("Cached").unwrap_or(&0);
         let slab = *mem.get("Slab").unwrap_or(&0);
-        let used = total.saturating_sub(free).saturating_sub(buffers + cached + slab);
+        let used = total
+            .saturating_sub(free)
+            .saturating_sub(buffers + cached + slab);
 
         let used_mb = used / (1024 * 1024);
         let total_mb = total / (1024 * 1024);
@@ -176,19 +180,13 @@ pub fn run_boost() {
 pub fn run_python() {
     println!("{CYAN}Starting Python Environment...{RESET}");
 
-    let python_path = system::find_executable(
-        &["/usr/bin/python3", "/bin/python3"],
-        "",
-    );
+    let python_path = system::find_executable(&["/usr/bin/python3", "/bin/python3"], "");
 
     if python_path.is_empty() {
         println!("{YELLOW}Python3 is not installed. Installing via apk...{RESET}");
         execute_external("apk add --no-cache python3");
 
-        let python_path = system::find_executable(
-            &["/usr/bin/python3", "/bin/python3"],
-            "",
-        );
+        let python_path = system::find_executable(&["/usr/bin/python3", "/bin/python3"], "");
         if python_path.is_empty() {
             print_error("Failed to install Python3.");
             return;
@@ -224,7 +222,7 @@ pub fn run_clear() {
 /// Launch the Wayland Desktop Environment (Sway).
 pub fn run_desktop() {
     println!("{CYAN}{BOLD}[+] Initializing JulesOS Wayland Desktop...{RESET}");
-    
+
     // Set essential Wayland environment variables
     std::env::set_var("XDG_SESSION_TYPE", "wayland");
     std::env::set_var("XDG_CURRENT_DESKTOP", "sway");
@@ -268,11 +266,7 @@ pub fn execute_external(cmd: &str) {
 
     // Handle `cd` as a built-in
     if cmd.starts_with("cd ") || cmd == "cd" {
-        let dir = if cmd.len() > 3 {
-            cmd[3..].trim()
-        } else {
-            ""
-        };
+        let dir = if cmd.len() > 3 { cmd[3..].trim() } else { "" };
         let target = if dir.is_empty() || dir == "~" {
             std::env::var("HOME").unwrap_or_else(|_| "/home/jules".to_string())
         } else {
@@ -399,19 +393,15 @@ pub fn execute_command(cmd: &str) {
         "clear" => run_clear(),
         "exit" | "poweroff" => {
             println!("{RED}Shutting down Jules OS...{RESET}");
-            let poweroff_path = system::find_executable(
-                &["/sbin/poweroff", "/usr/sbin/poweroff"],
-                "poweroff",
-            );
+            let poweroff_path =
+                system::find_executable(&["/sbin/poweroff", "/usr/sbin/poweroff"], "poweroff");
             execute_external(&poweroff_path);
             std::process::exit(0);
         }
         "reboot" => {
             println!("{YELLOW}Rebooting Jules OS...{RESET}");
-            let reboot_path = system::find_executable(
-                &["/sbin/reboot", "/usr/sbin/reboot"],
-                "reboot",
-            );
+            let reboot_path =
+                system::find_executable(&["/sbin/reboot", "/usr/sbin/reboot"], "reboot");
             execute_external(&reboot_path);
             std::process::exit(0);
         }

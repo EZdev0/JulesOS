@@ -39,17 +39,25 @@ pub fn start_daemon() {
                 for entry in entries.flatten() {
                     let file_name = entry.file_name();
                     let pid_str = file_name.to_string_lossy();
-                    
+
                     if let Ok(pid) = pid_str.parse::<u32>() {
                         // Whitelist PID <= 100 (Critical OS / Init)
-                        if pid <= 100 { continue; }
+                        if pid <= 100 {
+                            continue;
+                        }
 
                         let proc_ticks = get_process_ticks(pid);
-                        current_procs.insert(pid, ProcessStats { total_time: proc_ticks });
+                        current_procs.insert(
+                            pid,
+                            ProcessStats {
+                                total_time: proc_ticks,
+                            },
+                        );
 
                         if let Some(prev_stat) = prev_procs.get(&pid) {
                             let proc_delta = proc_ticks.saturating_sub(prev_stat.total_time);
-                            let cpu_usage = (proc_delta as f64 / sys_delta as f64) * 100.0 * num_cores;
+                            let cpu_usage =
+                                (proc_delta as f64 / sys_delta as f64) * 100.0 * num_cores;
 
                             if cpu_usage > CPU_LIMIT_PERCENT {
                                 // Freeze the process
@@ -77,8 +85,14 @@ pub fn start_daemon() {
             }
 
             for pid in to_resume {
-                println!("\x1b[1;32m[JRD] Resuming PID {} (Cooldown complete).\x1b[0m", pid);
-                let _ = Command::new("kill").arg("-SIGCONT").arg(pid.to_string()).output();
+                println!(
+                    "\x1b[1;32m[JRD] Resuming PID {} (Cooldown complete).\x1b[0m",
+                    pid
+                );
+                let _ = Command::new("kill")
+                    .arg("-SIGCONT")
+                    .arg(pid.to_string())
+                    .output();
                 suspended_pids.remove(&pid);
             }
         }
@@ -119,7 +133,11 @@ fn get_process_ticks(pid: u32) -> u64 {
 
 fn get_core_count() -> usize {
     if let Ok(cpuinfo) = fs::read_to_string("/proc/cpuinfo") {
-        return cpuinfo.lines().filter(|l| l.starts_with("processor")).count().max(1);
+        return cpuinfo
+            .lines()
+            .filter(|l| l.starts_with("processor"))
+            .count()
+            .max(1);
     }
     1
 }
