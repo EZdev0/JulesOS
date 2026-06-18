@@ -276,8 +276,11 @@ if [ -n "$APK_STATIC_PKG" ]; then
             echo "${ALPINE_REPO}/community"
         } > "${ROOTFS_DIR}/etc/apk/repositories"
         
+        info "Installing Desktop Packages into RootFS... (Logs will be saved to desktop_install.log)"
+        
         # Install packages into rootfs offline
-        ./sbin/apk.static -X "${ALPINE_REPO}/main" -X "${ALPINE_REPO}/community" -U --allow-untrusted --root "${ROOTFS_DIR}" --initdb add \
+        # --no-scripts prevents 'chroot: Operation not permitted' in unprivileged builds
+        if ./sbin/apk.static -X "${ALPINE_REPO}/main" -X "${ALPINE_REPO}/community" -U --allow-untrusted --root "${ROOTFS_DIR}" --initdb --no-scripts add \
             plymouth \
             sway swaybg waybar alacritty mako grim slurp wl-clipboard \
             mesa-dri-gallium mesa-egl wlroots \
@@ -285,10 +288,15 @@ if [ -n "$APK_STATIC_PKG" ]; then
             eudev eudev-openrc seatd dbus \
             python3 py3-gobject3 gtk+3.0 wine \
             parted util-linux grub grub-efi efibootmgr dosfstools e2fsprogs \
-            gcc g++ make cmake rust cargo nasm \
-            || warn "Some desktop packages failed to install. Continuing..."
+            gcc g++ make cmake rust cargo nasm > "${BUILD_DIR}/desktop_install.log" 2>&1; then
             
-        ok "Desktop & Plymouth packages installed."
+            ok "Desktop & Plymouth packages installed successfully."
+        else
+            warn "Desktop packages failed to install perfectly. See logs/desktop_install.log"
+            mkdir -p "${JULES_DIR}/logs"
+            cp "${BUILD_DIR}/desktop_install.log" "${JULES_DIR}/logs/" 2>/dev/null || true
+            warn "Continuing build without full desktop support..."
+        fi
     else
         warn "Failed to extract apk.static. Desktop may not be available."
     fi
