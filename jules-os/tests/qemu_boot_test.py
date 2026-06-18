@@ -20,7 +20,7 @@ def run_test():
         "-initrd", "iso/boot/initrd.img",
         "-append", "root=/dev/ram0 rw console=ttyS0 quiet loglevel=3 mitigations=off",
         "-nographic",
-        "-m", "512M",
+        "-m", "2048M",
         "-no-reboot"
     ]
     

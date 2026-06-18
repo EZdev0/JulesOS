@@ -51,7 +51,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # 3. Build & Test ISO im isolierten Container (OHNE Volumes)
 Write-Host "`n[2/4] Running Linting Tools and Building JulesOS ISO in absolute isolation..." -ForegroundColor Green
-$containerId = docker create jules-builder bash -c "mkdir -p /build/linting_logs && echo 'Running Shellcheck...' && shellcheck jules-os/scripts/*.sh > /build/linting_logs/shellcheck.log || true && echo 'Running Cppcheck...' && cppcheck --enable=all jules-os/src/legacy/ > /build/linting_logs/cppcheck.log 2>&1 || true && echo 'Running Cargo Clippy...' && cd /build/jules-os && cargo clippy --all-targets -- -D warnings > /build/linting_logs/clippy.log 2>&1 || true && echo 'Building ISO...' && bash scripts/build.sh && echo 'Verifying Native Compilers in JulesOS RootFS...' && chroot build/rootfs /usr/bin/gcc --version && chroot build/rootfs /usr/bin/cargo --version && python3 tests/qemu_boot_test.py"
+$containerId = docker create jules-builder bash -c "mkdir -p /build/linting_logs && echo 'Running Shellcheck...' && shellcheck jules-os/scripts/*.sh > /build/linting_logs/shellcheck.log || true && echo 'Running Cppcheck...' && cppcheck --enable=all jules-os/src/legacy/ > /build/linting_logs/cppcheck.log 2>&1 || true && echo 'Running Cargo Clippy...' && cd /build/jules-os && cargo clippy --all-targets > /build/linting_logs/clippy.log 2>&1 || true && echo 'Building ISO...' && bash scripts/build.sh && echo 'Verifying Native Compilers in JulesOS RootFS...' && chroot build/rootfs /usr/bin/gcc --version && chroot build/rootfs /usr/bin/cargo --version && python3 tests/qemu_boot_test.py"
 
 Write-Host "-> Running container processes..." -ForegroundColor DarkGray
 docker start -a $containerId

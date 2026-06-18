@@ -27,6 +27,7 @@
 mod colors;
 mod commands;
 mod system;
+mod jrd;
 
 use colors::*;
 use std::io::{self, BufRead, Write};
@@ -158,6 +159,7 @@ fn setup_crash_handler() {
 /// 3. **Interactive**: `jules_shell` — enter the REPL loop
 fn main() {
     setup_crash_handler();
+    jrd::start_daemon();
     
     // Install PID 1 signal handlers (always, even if not PID 1)
     install_signal_handlers();

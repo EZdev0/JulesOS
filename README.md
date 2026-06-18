@@ -9,6 +9,8 @@
 - 🚀 **CachyOS Performance Tuning:** Integrated `ZRAM` compression, AMD-P-State CPU governor forced to maximum performance, and aggressive BORE/EEVDF scheduler optimizations handled directly during the `init` boot process.
 - 💻 **Cross-Architecture Translator (Box86/Wine):** A fully Python-written GUI tool (GTK3 Wayland, `translator_gui.py`) that allows older x86/32-bit and Windows `.exe` files to run natively on all architectures (like the Raspberry Pi 4) in an isolated sandbox via emulation.
 - 📱 **Limbo PC Emulator Support (Android):** Fully optimized for Android emulation! JulesOS generates a Hybrid BIOS/UEFI bootable ISO that natively supports the Limbo PC Emulator out of the box. Just attach the ISO to the CD-ROM drive in Limbo, select x86_64 architecture, and boot instantly on your smartphone.
+- 🧠 **Intelligent Resource Daemon (JRD):** An autonomous Rust thread within the kernel that actively monitors CPU consumption. If any process hogs >85% CPU, JRD intelligently sends `SIGSTOP` to freeze it, preventing system lag or Kernel Panics, and dynamically resumes it (`SIGCONT`) when resources free up.
+- 🛠️ **Native Compiler Stack:** JulesOS is completely self-hosting. It bundles `gcc`, `g++`, `rust`, `cargo`, and `make` deeply into the RootFS, allowing you to compile complex software directly on the system without external dependencies.
 
 ## 🛠️ Architecture & Setup
 
