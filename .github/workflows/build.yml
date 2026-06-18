@@ -102,6 +102,10 @@ jobs:
           name: JulesOS_CrashLogs_BuildPhase
           path: JulesOS_CrashLogs.zip
 
+      - name: 🔍 Post-Build Verification
+        if: success()
+        working-directory: ./jules-os
+        run: |
           echo ""
           echo "✅ Jules Shell compiled successfully"
           echo ""
