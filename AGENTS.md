@@ -24,13 +24,10 @@ JulesOS is a minimal, immutable, high-performance Linux-based operating system. 
 
 ## Verification
 ```bash
-# Rust linting and tests
-cd jules-os && cargo clippy --all-targets -- -D warnings && cargo test
+# Run the comprehensive 7-stage CI/CD test locally via Docker
+bash jules-os/scripts/test_full.sh
 
-# Shell script validation
-shellcheck jules-os/scripts/*.sh
-
-# Build and verify ISO
+# Or build and verify ISO
 cd jules-os && bash scripts/build.sh
 file JulesOS.iso  # Must show "ISO 9660"
 ```
