@@ -4,9 +4,18 @@ echo '  JULES OS - VOLLSTAENDIGER LOKALER TEST'
 echo '======================================================'
 echo ''
 
+TARGET_ARCH=${1:-x86_64}
+if [ "$TARGET_ARCH" = "x86" ]; then
+    RUST_TARGET="i686-unknown-linux-musl"
+elif [ "$TARGET_ARCH" = "aarch64" ] || [ "$TARGET_ARCH" = "arm64" ]; then
+    RUST_TARGET="aarch64-unknown-linux-musl"
+else
+    RUST_TARGET="x86_64-unknown-linux-musl"
+fi
+
 # --- Setup ---
-echo '[1/7] Setup: Rust target + musl-tools'
-rustup target add x86_64-unknown-linux-musl 2>&1 | tail -1
+echo "[1/7] Setup: Rust target + musl-tools ($RUST_TARGET)"
+rustup target add "$RUST_TARGET" 2>&1 | tail -1
 rustup component add clippy rustfmt 2>&1 | tail -1
 apt-get update -qq 2>/dev/null
 apt-get install -y -qq --no-install-recommends musl-tools 2>/dev/null
@@ -22,28 +31,28 @@ echo ''
 
 # --- Clippy Lint (streng) ---
 echo '[3/7] Clippy Lint (pedantic)'
-cargo clippy --all-targets --target x86_64-unknown-linux-musl -- -W clippy::pedantic 2>&1
+cargo clippy --all-targets --target "$RUST_TARGET" -- -W clippy::pedantic 2>&1
 CLIP_EXIT=$?
 if [ $CLIP_EXIT -eq 0 ]; then echo '  PASS: Keine Clippy-Warnings'; else echo '  WARN: Clippy hat Findings'; fi
 echo ''
 
 # --- Build (Release, statisch) ---
 echo '[4/7] Build (Release + musl static)'
-RUSTFLAGS='-C strip=symbols' cargo build --release --target x86_64-unknown-linux-musl 2>&1
+RUSTFLAGS='-C strip=symbols' cargo build --release --target "$RUST_TARGET" 2>&1
 BUILD_EXIT=$?
 if [ $BUILD_EXIT -eq 0 ]; then echo '  PASS: Build erfolgreich'; else echo '  FAIL: Build fehlgeschlagen'; fi
 echo ''
 
 # --- Unit Tests ---
 echo '[5/7] Unit Tests (cargo test)'
-cargo test --target x86_64-unknown-linux-musl 2>&1
+cargo test --target "$RUST_TARGET" 2>&1
 TEST_EXIT=$?
 if [ $TEST_EXIT -eq 0 ]; then echo '  PASS: Alle Tests bestanden'; else echo '  FAIL: Tests fehlgeschlagen'; fi
 echo ''
 
 # --- Binary Verification ---
 echo '[6/7] Binary Verification'
-BINARY='target/x86_64-unknown-linux-musl/release/jules_shell'
+BINARY="target/$RUST_TARGET/release/jules_shell"
 if [ -f "$BINARY" ]; then
     echo '  Dateiinfo:'
     file "$BINARY"

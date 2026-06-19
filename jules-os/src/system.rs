@@ -57,9 +57,9 @@ pub fn get_disk_usage(path: &str) -> Option<(u64, u64, u64, f64)> {
         return None;
     };
 
-    let total = stat.blocks() * stat.fragment_size();
-    let free = stat.blocks_free() * stat.fragment_size();
-    let available = stat.blocks_available() * stat.fragment_size();
+    let total = stat.blocks() as u64 * stat.fragment_size() as u64;
+    let free = stat.blocks_free() as u64 * stat.fragment_size() as u64;
+    let available = stat.blocks_available() as u64 * stat.fragment_size() as u64;
     let used = total - free;
     let usage_pct = if total > 0 {
         (used as f64) * 100.0 / (total as f64)

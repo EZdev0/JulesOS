@@ -15,12 +15,29 @@ ISO_DIR="${JULES_DIR}/iso"
 ROOTFS_DIR="${BUILD_DIR}/rootfs"
 ALPINE_VERSION="3.21"
 ALPINE_RELEASE="3.21.2"
-ALPINE_ARCH="x86_64"
+
+TARGET_ARCH=${1:-x86_64}
+if [ "$TARGET_ARCH" = "x86" ]; then
+    ALPINE_ARCH="x86"
+    RUST_TARGET="i686-unknown-linux-musl"
+    QEMU_ARCH="i386"
+elif [ "$TARGET_ARCH" = "aarch64" ] || [ "$TARGET_ARCH" = "arm64" ]; then
+    TARGET_ARCH="aarch64"
+    ALPINE_ARCH="aarch64"
+    RUST_TARGET="aarch64-unknown-linux-musl"
+    QEMU_ARCH="aarch64"
+else
+    TARGET_ARCH="x86_64"
+    ALPINE_ARCH="x86_64"
+    RUST_TARGET="x86_64-unknown-linux-musl"
+    QEMU_ARCH="x86_64"
+fi
+
 ALPINE_TAR="alpine-minirootfs-${ALPINE_RELEASE}-${ALPINE_ARCH}.tar.gz"
 ALPINE_URL="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/${ALPINE_ARCH}/${ALPINE_TAR}"
 ALPINE_SHA_URL="${ALPINE_URL}.sha256"
 ALPINE_REPO="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}"
-ISO_OUTPUT="${JULES_DIR}/JulesOS.iso"
+ISO_OUTPUT="${JULES_DIR}/JulesOS-${TARGET_ARCH}.iso"
 
 # Colors for output
 RED='\033[0;31m'
@@ -102,15 +119,14 @@ if command -v cargo >/dev/null 2>&1; then
     info "Rust toolchain detected: $(rustc --version 2>/dev/null || echo 'unknown')"
 
     # Try cross-compilation for static musl binary (ideal for OS)
-    RUST_TARGET="x86_64-unknown-linux-musl"
     BINARY_PATH=""
 
     if command -v cross >/dev/null 2>&1; then
         info "Using 'cross' for static musl build..."
         cross build --release --target "${RUST_TARGET}" && \
             BINARY_PATH="target/${RUST_TARGET}/release/jules_shell"
-    elif rustup target list --installed 2>/dev/null | grep -q "${RUST_TARGET}"; then
-        info "Building with musl target..."
+    elif rustup target list --installed 2>/dev/null | grep -q "${RUST_TARGET}" || rustup target add "${RUST_TARGET}" 2>/dev/null; then
+        info "Building with musl target ${RUST_TARGET}..."
         cargo build --release --target "${RUST_TARGET}" && \
             BINARY_PATH="target/${RUST_TARGET}/release/jules_shell"
     fi

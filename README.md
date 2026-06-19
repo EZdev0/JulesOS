@@ -22,6 +22,14 @@
 - 🧠 **Intelligent Resource Daemon (JRD):** An autonomous Rust thread within the kernel that actively monitors CPU consumption. If any process hogs >85% CPU, JRD intelligently sends `SIGSTOP` to freeze it, preventing system lag or Kernel Panics, and dynamically resumes it (`SIGCONT`) when resources free up.
 - 🛠️ **Native Compiler Stack:** JulesOS is completely self-hosting. It bundles `gcc`, `g++`, `rust`, `cargo`, and `make` deeply into the RootFS.
 
+## 📱 Limbo PC Emulator (Android) Guide
+To run JulesOS flawlessly on your smartphone without crashes, use the following settings based on your downloaded ISO:
+- **App Version:** Download the **"Limbo x86 Emulator"** APK (Not Limbo ARM, unless you built the `aarch64` ISO).
+- **Machine Type:** `q35`
+- **CPU Model:** `qemu32` (for x86 ISO) or `qemu64` (for x86_64 ISO)
+- **RAM Memory:** **256 MB** or **512 MB** maximum! (If you set this too high, Android's OOM killer will aggressively crash Limbo in the background).
+- **Display / Graphics:** `SDL` (Provides the most fluid emulation performance).
+
 ---
 
 ## 🏗️ System Architecture

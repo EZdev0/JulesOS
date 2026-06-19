@@ -21,7 +21,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RUST_TARGET: x86_64-unknown-linux-musl
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -29,18 +28,27 @@ jobs:
   # BUILD JOB: Compile Jules Shell (Rust)
   # ══════════════════════════════════════════════════════════════
   build:
-    name: Build Jules Shell (Rust)
+    name: Build Jules Shell (${{ matrix.arch }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      matrix:
+        arch: [x86_64, x86, aarch64]
 
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
+      - name: ⚙️ Set Architecture Env
+        run: |
+          if [ "${{ matrix.arch }}" = "x86" ]; then echo "RUST_TARGET=i686-unknown-linux-musl" >> $GITHUB_ENV;
+          elif [ "${{ matrix.arch }}" = "aarch64" ]; then echo "RUST_TARGET=aarch64-unknown-linux-musl" >> $GITHUB_ENV;
+          else echo "RUST_TARGET=x86_64-unknown-linux-musl" >> $GITHUB_ENV; fi
+
       - name: 🦀 Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-unknown-linux-musl
+          targets: i686-unknown-linux-musl, x86_64-unknown-linux-musl, aarch64-unknown-linux-musl
           components: clippy, rustfmt
 
       - name: 🔧 Install musl-tools
@@ -133,7 +141,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: jules-shell-binary
+          name: jules-shell-binary-${{ matrix.arch }}
           path: jules-os/target/${{ env.RUST_TARGET }}/release/jules_shell
           retention-days: 30
 
@@ -141,18 +149,27 @@ jobs:
   # TEST JOB: Unit Tests & Component Tests
   # ══════════════════════════════════════════════════════════════
   test:
-    name: Unit & Component Tests
+    name: Unit Tests (${{ matrix.arch }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      matrix:
+        arch: [x86_64, x86, aarch64]
 
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
+      - name: ⚙️ Set Architecture Env
+        run: |
+          if [ "${{ matrix.arch }}" = "x86" ]; then echo "RUST_TARGET=i686-unknown-linux-musl" >> $GITHUB_ENV;
+          elif [ "${{ matrix.arch }}" = "aarch64" ]; then echo "RUST_TARGET=aarch64-unknown-linux-musl" >> $GITHUB_ENV;
+          else echo "RUST_TARGET=x86_64-unknown-linux-musl" >> $GITHUB_ENV; fi
+
       - name: 🦀 Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-unknown-linux-musl
+          targets: i686-unknown-linux-musl, x86_64-unknown-linux-musl, aarch64-unknown-linux-musl
 
       - name: 🔧 Install musl-tools
         run: sudo rm -f /var/lib/man-db/auto-update && echo 'force-unsafe-io' | sudo tee /etc/dpkg/dpkg.cfg.d/02apt-speedup && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends musl-tools
@@ -351,10 +368,13 @@ jobs:
   # ISO BUILD JOB: Generate Bootable ISO
   # ══════════════════════════════════════════════════════════════
   iso:
-    name: Build ISO Image
+    name: Build ISO (${{ matrix.arch }})
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      matrix:
+        arch: [x86_64, x86, aarch64]
 
     steps:
       - name: 📥 Checkout Repository
@@ -372,7 +392,7 @@ jobs:
       - name: 📥 Download Jules Shell Binary
         uses: actions/download-artifact@v4
         with:
-          name: jules-shell-binary
+          name: jules-shell-binary-${{ matrix.arch }}
           path: ./jules-os/build/
 
       - name: 🏗️ Build ISO Image
@@ -390,16 +410,16 @@ jobs:
           file build/jules_shell
 
           echo ""
-          echo "Running build.sh..."
-          bash scripts/build.sh
+          echo "Running build.sh ${{ matrix.arch }}..."
+          bash scripts/build.sh ${{ matrix.arch }}
 
           echo ""
-          if [ -f JulesOS.iso ]; then
+          if [ -f JulesOS-${{ matrix.arch }}.iso ]; then
             echo "════════════════════════════════════════"
             echo "✅ ISO CREATED SUCCESSFULLY"
             echo "════════════════════════════════════════"
-            ls -lh JulesOS.iso
-            file JulesOS.iso
+            ls -lh JulesOS-${{ matrix.arch }}.iso
+            file JulesOS-${{ matrix.arch }}.iso
           else
             echo "════════════════════════════════════════"
             echo "❌ ISO CREATION FAILED"
@@ -438,8 +458,8 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: julesOS-iso
-          path: jules-os/JulesOS.iso
+          name: julesOS-iso-${{ matrix.arch }}
+          path: jules-os/JulesOS-${{ matrix.arch }}.iso
           retention-days: 30
 
       - name: 📁 Save Crash Logs on Failure
@@ -462,16 +482,19 @@ jobs:
   # ANALYSIS JOB: Deep OS Image Analysis
   # ══════════════════════════════════════════════════════════════
   iso-analysis:
-    name: OS Image Analysis
+    name: ISO Analysis (${{ matrix.arch }})
     needs: iso
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      matrix:
+        arch: [x86_64, x86, aarch64]
 
     steps:
       - name: 📥 Download ISO Artifact
         uses: actions/download-artifact@v4
         with:
-          name: julesOS-iso
+          name: julesOS-iso-${{ matrix.arch }}
           path: ./
 
       - name: 🔧 Install Analysis Tools
@@ -491,20 +514,20 @@ jobs:
           echo "" >> $REPORT
 
           echo "1. File Size & Type:" >> $REPORT
-          ls -lh JulesOS.iso >> $REPORT
-          file JulesOS.iso >> $REPORT
+          ls -lh JulesOS-${{ matrix.arch }}.iso >> $REPORT
+          file JulesOS-${{ matrix.arch }}.iso >> $REPORT
           echo "" >> $REPORT
 
           echo "2. Partition Table (fdisk):" >> $REPORT
-          fdisk -l JulesOS.iso >> $REPORT
+          fdisk -l JulesOS-${{ matrix.arch }}.iso >> $REPORT
           echo "" >> $REPORT
 
           echo "3. Binwalk Signature Scan (Finding hidden embedded data):" >> $REPORT
-          binwalk JulesOS.iso >> $REPORT
+          binwalk JulesOS-${{ matrix.arch }}.iso >> $REPORT
           echo "" >> $REPORT
 
           echo "4. Extracting ISO Contents for Tree View..." >> $REPORT
-          7z x JulesOS.iso -oextracted_iso > /dev/null 2>&1
+          7z x JulesOS-${{ matrix.arch }}.iso -oextracted_iso > /dev/null 2>&1
           
           echo "5. ISO Directory Structure:" >> $REPORT
           tree extracted_iso >> $REPORT
@@ -515,7 +538,7 @@ jobs:
       - name: 📦 Upload Analysis Report
         uses: actions/upload-artifact@v4
         with:
-          name: julesOS-analysis-report
+          name: julesOS-analysis-report-${{ matrix.arch }}
           path: os-analysis-report.txt
           retention-days: 30
 
