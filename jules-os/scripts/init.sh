@@ -8,9 +8,54 @@
 set +e # STRICT INSTRUCTION: Never use set -e in an init script, it causes Kernel Panics!
 
 # ══════════════════════════════════════════════════════════════
+# 0. IMMEDIATE VISUAL FEEDBACK (Anti-Black-Screen)
+# ══════════════════════════════════════════════════════════════
+# This runs FIRST so the user sees output immediately after GRUB.
+# Without this, the screen is black while the kernel loads.
+
+clear 2>/dev/null || true
+printf "\033[2J\033[1;1H" 2>/dev/null || true
+printf "\033[?25l" 2>/dev/null || true
+
+printf "\n\n\n"
+printf "\033[1;36m"
+printf "            +----------------------------------------------+\n"
+printf "            |                                              |\n"
+printf "            |        J U L E S    O S   v1.0.0             |\n"
+printf "            |                                              |\n"
+printf "            |     The Immutable AI Operating System        |\n"
+printf "            |                                              |\n"
+printf "            +----------------------------------------------+\n"
+printf "\033[0m\n"
+
+# Boot progress bar function
+boot_progress() {
+    STEP_NAME="$1"
+    STEP_NUM="$2"
+    STEP_TOTAL="$3"
+
+    # Calculate progress
+    FILLED=$(( STEP_NUM * 40 / STEP_TOTAL ))
+    EMPTY=$(( 40 - FILLED ))
+    PERCENT=$(( STEP_NUM * 100 / STEP_TOTAL ))
+
+    # Build progress bar
+    BAR=""
+    i=0
+    while [ "$i" -lt "$FILLED" ]; do BAR="${BAR}#"; i=$((i+1)); done
+    i=0
+    while [ "$i" -lt "$EMPTY" ]; do BAR="${BAR}-"; i=$((i+1)); done
+
+    printf "\r\033[K  \033[1;36m[%3d%%]\033[0m [%s]  %s" "$PERCENT" "$BAR" "$STEP_NAME"
+}
+
+printf "  \033[0;33mInitializing system components...\033[0m\n\n"
+
+# ══════════════════════════════════════════════════════════════
 # 1. CORE FILESYSTEM SETUP
 # ══════════════════════════════════════════════════════════════
 
+boot_progress "Mounting filesystems" 1 10
 # Mount essential kernel filesystems
 mount -t proc none /proc
 mount -t sysfs none /sys
@@ -46,6 +91,8 @@ fi
 # are ephemeral and discarded on reboot. This makes the OS truly
 # immutable and self-repairing.
 
+boot_progress "OverlayFS immutable layer" 2 10
+echo ""
 echo "[ OK ] Setting up OverlayFS immutable layer..."
 
 # Create overlay mount points in RAM
@@ -87,6 +134,8 @@ echo "[ OK ] Immutable layer configured. Core is indestructible."
 # 3. HARDWARE DRIVER LOADING
 # ══════════════════════════════════════════════════════════════
 
+boot_progress "Loading hardware drivers" 3 10
+echo ""
 echo "[ OK ] Loading hardware drivers..."
 
 # Load essential kernel modules (if modprobe is available)
@@ -150,6 +199,8 @@ fi
 # 4. HOSTNAME & IDENTITY
 # ══════════════════════════════════════════════════════════════
 
+boot_progress "Hostname & identity" 4 10
+echo ""
 hostname JulesOS 2>/dev/null || true
 echo "JulesOS" > /etc/hostname 2>/dev/null || true
 
@@ -168,6 +219,8 @@ echo "[ OK ] System identity configured."
 # 5. NETWORK CONFIGURATION
 # ══════════════════════════════════════════════════════════════
 
+boot_progress "Network configuration" 5 10
+echo ""
 echo "[ OK ] Bringing up network interfaces..."
 
 # Loopback
@@ -208,6 +261,8 @@ fi
 # 6. PACKAGE REPOSITORY SETUP
 # ══════════════════════════════════════════════════════════════
 
+boot_progress "Package repositories" 6 10
+echo ""
 if [ -f /etc/alpine-release ]; then
     ALPINE_VERSION=$(cut -d. -f1,2 /etc/alpine-release)
     echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main" > /etc/apk/repositories
@@ -219,6 +274,8 @@ fi
 # 7. PERSISTENT DATA VAULT
 # ══════════════════════════════════════════════════════════════
 
+boot_progress "Persistent vault" 7 10
+echo ""
 echo "[ OK ] Scanning for Persistent Vault..."
 VAULT_DEV=""
 for dev in /dev/vda2 /dev/sda2 /dev/vdb /dev/sdb; do
@@ -245,6 +302,8 @@ fi
 # 8. USER SETUP
 # ══════════════════════════════════════════════════════════════
 
+boot_progress "User setup" 8 10
+echo ""
 if ! id "jules" >/dev/null 2>&1; then
     echo "[ INFO ] Creating user 'jules'..."
     adduser -D jules 2>/dev/null || true
@@ -277,6 +336,8 @@ cd /home/jules || cd /
 # 9. PERFORMANCE TUNING (CachyOS Inspired)
 # ══════════════════════════════════════════════════════════════
 
+boot_progress "Performance tuning" 9 10
+echo ""
 echo "[ OK ] Applying Jules OS Tuning (CachyOS Optimized)..."
 
 # Memory management & ZRAM (CachyOS Style)
@@ -332,12 +393,17 @@ echo "[ OK ] Performance tuning applied."
 # 10. HANDOVER TO JULES SHELL
 # ══════════════════════════════════════════════════════════════
 
+boot_progress "Launching Jules Shell" 10 10
 echo ""
-echo "════════════════════════════════════════════════════════"
+echo ""
+printf "\033[?25h" 2>/dev/null || true
+
+echo ""
+echo "============================================================"
 echo "  Jules OS v1.0.0 initialized successfully."
 echo "  OverlayFS: Active | Vault: $([ -n "$VAULT_DEV" ] && echo "$VAULT_DEV" || echo "RAM")"
 echo "  Network: $([ -n "$NET_IF" ] && echo "$NET_IF" || echo "none")"
-echo "════════════════════════════════════════════════════════"
+echo "============================================================"
 echo ""
 
 if [ -x /bin/jules_shell ]; then

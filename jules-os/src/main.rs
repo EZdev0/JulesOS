@@ -167,6 +167,7 @@ fn main() {
     install_signal_handlers();
 
     let args: Vec<String> = std::env::args().collect();
+    let auto_desktop = args.contains(&"--auto-desktop".to_string());
 
     // Mode 1: Non-interactive (-c flag)
     if args.len() >= 3 && args[1] == "-c" {
@@ -174,18 +175,18 @@ fn main() {
         return;
     }
 
-    // Mode 2: Direct arguments
-    if args.len() > 1 {
+    // Mode 2: Direct arguments (skip known flags like --auto-desktop)
+    if args.len() > 1 && !auto_desktop {
         let cmd = args[1..].join(" ");
         commands::execute_command(&cmd);
         return;
     }
 
     // Mode 4: Auto Desktop (Fallback to REPL if it fails)
-    if args.contains(&"--auto-desktop".to_string()) {
+    if auto_desktop {
         commands::run_clear();
         splash::run_splash();
-        
+
         println!("{YELLOW}[PID 1] Attempting Auto-Boot into Wayland Desktop...{RESET}");
         commands::run_desktop();
         println!("{YELLOW}[PID 1] Desktop session ended. Falling back to recovery shell...{RESET}");
