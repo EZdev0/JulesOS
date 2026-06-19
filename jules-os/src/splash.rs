@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::thread;
 use std::time::Duration;
-use crate::colors::{CYAN, RESET, BOLD};
+use crate::colors::{RESET, BOLD};
 
 /// Jules AI Agent Octopus - Clean ASCII art splash logo.
 /// Designed for dark terminal backgrounds (init/TTY).
