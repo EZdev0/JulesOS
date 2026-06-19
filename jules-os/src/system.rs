@@ -52,6 +52,7 @@ pub fn get_mem_info() -> HashMap<String, u64> {
 /// Get disk usage information for a given path.
 ///
 /// Returns (total, used, available, `usage_percent`) in bytes.
+#[allow(clippy::unnecessary_cast)]
 pub fn get_disk_usage(path: &str) -> Option<(u64, u64, u64, f64)> {
     let Ok(stat) = nix::sys::statvfs::statvfs(path) else {
         return None;
