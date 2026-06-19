@@ -127,6 +127,13 @@ if command -v cargo >/dev/null 2>&1; then
             BINARY_PATH="target/${RUST_TARGET}/release/jules_shell"
     elif rustup target list --installed 2>/dev/null | grep -q "${RUST_TARGET}" || rustup target add "${RUST_TARGET}" 2>/dev/null; then
         info "Building with musl target ${RUST_TARGET}..."
+        
+        # Export cross-compiler linker if targeting aarch64 on x86_64 host
+        if [ "${RUST_TARGET}" = "aarch64-unknown-linux-musl" ]; then
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="aarch64-linux-gnu-gcc"
+            export CC_aarch64_unknown_linux_musl="aarch64-linux-gnu-gcc"
+        fi
+        
         cargo build --release --target "${RUST_TARGET}" && \
             BINARY_PATH="target/${RUST_TARGET}/release/jules_shell"
     fi
