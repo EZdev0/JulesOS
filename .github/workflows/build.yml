@@ -386,7 +386,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends \
             wget tar cpio gzip xorriso pv \
-            syslinux syslinux-utils dosfstools mtools qemu-utils qemu-system-x86 \
+            syslinux syslinux-utils dosfstools mtools qemu-utils qemu-system-x86 qemu-system-arm \
             grub-pc-bin grub-efi-amd64-bin
 
       - name: 📥 Download Jules Shell Binary
@@ -452,7 +452,7 @@ jobs:
           echo "🤖 SUB-AGENT: BOOT VALIDATION"
           echo "════════════════════════════════════════"
           # Requires python3 to run the automated test agent
-          python3 tests/qemu_boot_test.py
+          python3 tests/qemu_boot_test.py --arch ${{ matrix.arch }}
 
       - name: 📦 Upload ISO Artifact
         if: success()
@@ -543,11 +543,65 @@ jobs:
           retention-days: 30
 
   # ══════════════════════════════════════════════════════════════
+  # UNIVERSAL ISO JOB: Generate Multi-Arch Universal ISO
+  # ══════════════════════════════════════════════════════════════
+  universal-iso:
+    name: Build Universal ISO
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🦀 Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: i686-unknown-linux-musl, x86_64-unknown-linux-musl, aarch64-unknown-linux-musl
+          components: clippy, rustfmt
+
+      - name: 🔧 Install ISO & Build Dependencies
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update && echo 'force-unsafe-io' | sudo tee /etc/dpkg/dpkg.cfg.d/02apt-speedup
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            wget tar cpio gzip xorriso pv musl-tools \
+            syslinux syslinux-utils dosfstools mtools qemu-utils qemu-system-x86 qemu-system-arm \
+            grub-pc-bin grub-efi-amd64-bin grub-efi-ia32-bin grub-efi-arm64-bin
+
+      - name: 🏗️ Build Universal ISO
+        working-directory: ./jules-os
+        run: |
+          echo "════════════════════════════════════════"
+          echo "🏗️  BUILDING UNIVERSAL ISO"
+          echo "════════════════════════════════════════"
+          chmod +x scripts/*.sh
+          bash scripts/build_universal.sh
+
+      - name: "🤖 Sub-Agent QEMU Boot Validation"
+        working-directory: ./jules-os
+        run: |
+          echo "════════════════════════════════════════"
+          echo "🤖 SUB-AGENT: BOOT VALIDATION (Universal)"
+          echo "════════════════════════════════════════"
+          # Requires python3 to run the automated test agent
+          # Testing x86_64 boot by default on Universal ISO
+          python3 tests/qemu_boot_test.py --arch x86_64 --universal
+
+      - name: 📦 Upload Universal ISO Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: julesOS-Universal
+          path: jules-os/JulesOS-Universal.iso
+          retention-days: 30
+
+  # ══════════════════════════════════════════════════════════════
   # SUMMARY JOB: Final Status Report
   # ══════════════════════════════════════════════════════════════
   summary:
     name: Build Summary
-    needs: [ build, test, security, iso, iso-analysis ]
+    needs: [ build, test, security, iso, iso-analysis, universal-iso ]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: always()
@@ -566,6 +620,7 @@ jobs:
           echo "  • Security:      ${{ needs.security.result }}"
           echo "  • ISO:           ${{ needs.iso.result }}"
           echo "  • ISO-Analysis:  ${{ needs.iso-analysis.result }}"
+          echo "  • Universal ISO: ${{ needs.universal-iso.result }}"
           echo ""
 
           CRITICAL_OK=true
@@ -574,6 +629,7 @@ jobs:
           [ "${{ needs.security.result }}" = "success" ] && echo "✅ Security PASSED" || echo "⚠️  Security FAILED"
           [ "${{ needs.iso.result }}" = "success" ] && echo "✅ ISO PASSED" || { echo "⚠️  ISO FAILED"; CRITICAL_OK=false; }
           [ "${{ needs.iso-analysis.result }}" = "success" ] && echo "✅ Analysis PASSED" || echo "⚠️  Analysis FAILED"
+          [ "${{ needs.universal-iso.result }}" = "success" ] && echo "✅ Universal ISO PASSED" || { echo "⚠️  Universal ISO FAILED"; CRITICAL_OK=false; }
 
           echo ""
           if $CRITICAL_OK; then
@@ -591,7 +647,7 @@ jobs:
   # ══════════════════════════════════════════════════════════════
   release:
     name: Generate Release
-    needs: [ build, test, security, iso, iso-analysis, summary ]
+    needs: [ build, test, security, iso, iso-analysis, universal-iso, summary ]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

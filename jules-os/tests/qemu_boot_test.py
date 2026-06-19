@@ -10,19 +10,50 @@ import sys
 import time
 import re
 
+import argparse
+
 def run_test():
-    print("🚀 [Sub-Agent] Starting QEMU Boot Validation for Jules OS...")
+    parser = argparse.ArgumentParser(description="Jules OS QEMU Boot Validation")
+    parser.add_argument("--arch", default="x86_64", help="Target architecture to test")
+    parser.add_argument("--universal", action="store_true", help="Test the Universal ISO via CDROM")
+    args = parser.parse_args()
+
+    print(f"🚀 [Sub-Agent] Starting QEMU Boot Validation for Jules OS ({args.arch})...")
     
-    # QEMU command optimized for CI headless testing
-    qemu_cmd = [
-        "qemu-system-x86_64",
-        "-kernel", "iso/boot/bzImage",
-        "-initrd", "iso/boot/initrd.img",
-        "-append", "root=/dev/ram0 rw console=ttyS0 quiet loglevel=3 mitigations=off",
-        "-nographic",
-        "-m", "2048M",
-        "-no-reboot"
-    ]
+    # Configure architecture-specific QEMU arguments
+    if args.arch == "aarch64" or args.arch == "arm64":
+        qemu_bin = "qemu-system-aarch64"
+        machine_args = ["-machine", "virt", "-cpu", "max"]
+        console_dev = "ttyAMA0"
+    elif args.arch == "x86" or args.arch == "i386" or args.arch == "i686":
+        qemu_bin = "qemu-system-i386"
+        machine_args = []
+        console_dev = "ttyS0"
+    else:
+        qemu_bin = "qemu-system-x86_64"
+        machine_args = []
+        console_dev = "ttyS0"
+        
+    if args.universal:
+        qemu_cmd = [
+            qemu_bin,
+        ] + machine_args + [
+            "-cdrom", "JulesOS-Universal.iso",
+            "-nographic",
+            "-m", "512M",
+            "-no-reboot"
+        ]
+    else:
+        qemu_cmd = [
+            qemu_bin,
+        ] + machine_args + [
+            "-kernel", "iso/boot/bzImage",
+            "-initrd", "iso/boot/initrd.img",
+            "-append", f"root=/dev/ram0 rw console={console_dev} quiet loglevel=3 mitigations=off",
+            "-nographic",
+            "-m", "512M",
+            "-no-reboot"
+        ]
     
     try:
         # Start QEMU
@@ -34,7 +65,7 @@ def run_test():
             bufsize=1
         )
     except FileNotFoundError:
-        print("❌ [Sub-Agent] qemu-system-x86_64 not found. Please install QEMU.")
+        print(f"❌ [Sub-Agent] {qemu_bin} not found. Please install QEMU for {args.arch}.")
         sys.exit(1)
 
     success_markers = [
