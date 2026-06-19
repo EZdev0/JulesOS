@@ -20,6 +20,13 @@ ARCHS="x86_64 x86 aarch64"
 
 for ARCH in $ARCHS; do
     echo ">>> Building Architecture: $ARCH"
+    
+    mkdir -p "${JULES_DIR}/build"
+    if [ -f "${JULES_DIR}/binaries/${ARCH}/jules_shell" ]; then
+        cp "${JULES_DIR}/binaries/${ARCH}/jules_shell" "${JULES_DIR}/build/jules_shell"
+        echo "✅ Using pre-compiled binary for $ARCH"
+    fi
+    
     bash "${JULES_DIR}/scripts/build.sh" "$ARCH" || {
         echo "❌ Build failed for $ARCH"
         exit 1

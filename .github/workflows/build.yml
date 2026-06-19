@@ -42,7 +42,10 @@ jobs:
       - name: ⚙️ Set Architecture Env
         run: |
           if [ "${{ matrix.arch }}" = "x86" ]; then echo "RUST_TARGET=i686-unknown-linux-musl" >> $GITHUB_ENV;
-          elif [ "${{ matrix.arch }}" = "aarch64" ]; then echo "RUST_TARGET=aarch64-unknown-linux-musl" >> $GITHUB_ENV;
+          elif [ "${{ matrix.arch }}" = "aarch64" ]; then 
+            echo "RUST_TARGET=aarch64-unknown-linux-musl" >> $GITHUB_ENV
+            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+            echo "CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           else echo "RUST_TARGET=x86_64-unknown-linux-musl" >> $GITHUB_ENV; fi
 
       - name: 🦀 Install Rust Toolchain
@@ -55,7 +58,7 @@ jobs:
         run: |
           sudo rm -f /var/lib/man-db/auto-update && echo 'force-unsafe-io' | sudo tee /etc/dpkg/dpkg.cfg.d/02apt-speedup
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends musl-tools
+          sudo apt-get install -y -qq --no-install-recommends musl-tools gcc-aarch64-linux-gnu gcc-multilib
 
       - name: 📋 Toolchain Info
         run: |
@@ -163,7 +166,10 @@ jobs:
       - name: ⚙️ Set Architecture Env
         run: |
           if [ "${{ matrix.arch }}" = "x86" ]; then echo "RUST_TARGET=i686-unknown-linux-musl" >> $GITHUB_ENV;
-          elif [ "${{ matrix.arch }}" = "aarch64" ]; then echo "RUST_TARGET=aarch64-unknown-linux-musl" >> $GITHUB_ENV;
+          elif [ "${{ matrix.arch }}" = "aarch64" ]; then 
+            echo "RUST_TARGET=aarch64-unknown-linux-musl" >> $GITHUB_ENV
+            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+            echo "CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           else echo "RUST_TARGET=x86_64-unknown-linux-musl" >> $GITHUB_ENV; fi
 
       - name: 🦀 Install Rust Toolchain
@@ -171,8 +177,8 @@ jobs:
         with:
           targets: i686-unknown-linux-musl, x86_64-unknown-linux-musl, aarch64-unknown-linux-musl
 
-      - name: 🔧 Install musl-tools
-        run: sudo rm -f /var/lib/man-db/auto-update && echo 'force-unsafe-io' | sudo tee /etc/dpkg/dpkg.cfg.d/02apt-speedup && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends musl-tools
+      - name: 🔧 Install musl-tools & cross-compilers
+        run: sudo rm -f /var/lib/man-db/auto-update && echo 'force-unsafe-io' | sudo tee /etc/dpkg/dpkg.cfg.d/02apt-speedup && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends musl-tools gcc-aarch64-linux-gnu gcc-multilib
 
       - name: 🧪 Run Unit Tests
         working-directory: ./jules-os
@@ -547,6 +553,7 @@ jobs:
   # ══════════════════════════════════════════════════════════════
   universal-iso:
     name: Build Universal ISO
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -554,11 +561,23 @@ jobs:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🦀 Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: 📥 Download Jules Shell Binary (x86_64)
+        uses: actions/download-artifact@v4
         with:
-          targets: i686-unknown-linux-musl, x86_64-unknown-linux-musl, aarch64-unknown-linux-musl
-          components: clippy, rustfmt
+          name: jules-shell-binary-x86_64
+          path: ./jules-os/binaries/x86_64/
+          
+      - name: 📥 Download Jules Shell Binary (x86)
+        uses: actions/download-artifact@v4
+        with:
+          name: jules-shell-binary-x86
+          path: ./jules-os/binaries/x86/
+          
+      - name: 📥 Download Jules Shell Binary (aarch64)
+        uses: actions/download-artifact@v4
+        with:
+          name: jules-shell-binary-aarch64
+          path: ./jules-os/binaries/aarch64/
 
       - name: 🔧 Install ISO & Build Dependencies
         run: |
@@ -597,11 +616,72 @@ jobs:
           retention-days: 30
 
   # ══════════════════════════════════════════════════════════════
+  # ANALYSIS JOB: Deep OS Image Analysis (Universal)
+  # ══════════════════════════════════════════════════════════════
+  universal-iso-analysis:
+    name: Universal ISO Analysis
+    needs: universal-iso
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Download Universal ISO Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: julesOS-Universal
+          path: ./
+
+      - name: 🔧 Install Analysis Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends binwalk tree fdisk p7zip-full
+
+      - name: 🔬 Analyze Universal ISO Image
+        run: |
+          echo "════════════════════════════════════════"
+          echo "🔬 DEEP OS IMAGE ANALYSIS (Universal)"
+          echo "════════════════════════════════════════"
+          
+          REPORT="universal-os-analysis-report.txt"
+          echo "=== JULES OS - UNIVERSAL IMAGE ANALYSIS REPORT ===" > $REPORT
+          echo "Date: $(date)" >> $REPORT
+          echo "" >> $REPORT
+
+          echo "1. File Size & Type:" >> $REPORT
+          ls -lh JulesOS-Universal.iso >> $REPORT
+          file JulesOS-Universal.iso >> $REPORT
+          echo "" >> $REPORT
+
+          echo "2. Partition Table (fdisk):" >> $REPORT
+          fdisk -l JulesOS-Universal.iso >> $REPORT
+          echo "" >> $REPORT
+
+          echo "3. Binwalk Signature Scan (Finding hidden embedded data):" >> $REPORT
+          binwalk JulesOS-Universal.iso >> $REPORT
+          echo "" >> $REPORT
+
+          echo "4. Extracting ISO Contents for Tree View..." >> $REPORT
+          7z x JulesOS-Universal.iso -oextracted_iso > /dev/null 2>&1
+          
+          echo "5. ISO Directory Structure:" >> $REPORT
+          tree extracted_iso >> $REPORT
+          
+          echo "Analysis complete. Report generated."
+          cat $REPORT
+
+      - name: 📦 Upload Universal Analysis Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: julesOS-analysis-report-Universal
+          path: universal-os-analysis-report.txt
+          retention-days: 30
+
+  # ══════════════════════════════════════════════════════════════
   # SUMMARY JOB: Final Status Report
   # ══════════════════════════════════════════════════════════════
   summary:
     name: Build Summary
-    needs: [ build, test, security, iso, iso-analysis, universal-iso ]
+    needs: [ build, test, security, iso, iso-analysis, universal-iso, universal-iso-analysis ]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: always()
@@ -621,6 +701,7 @@ jobs:
           echo "  • ISO:           ${{ needs.iso.result }}"
           echo "  • ISO-Analysis:  ${{ needs.iso-analysis.result }}"
           echo "  • Universal ISO: ${{ needs.universal-iso.result }}"
+          echo "  • Universal Analysis: ${{ needs.universal-iso-analysis.result }}"
           echo ""
 
           CRITICAL_OK=true
@@ -630,6 +711,7 @@ jobs:
           [ "${{ needs.iso.result }}" = "success" ] && echo "✅ ISO PASSED" || { echo "⚠️  ISO FAILED"; CRITICAL_OK=false; }
           [ "${{ needs.iso-analysis.result }}" = "success" ] && echo "✅ Analysis PASSED" || echo "⚠️  Analysis FAILED"
           [ "${{ needs.universal-iso.result }}" = "success" ] && echo "✅ Universal ISO PASSED" || { echo "⚠️  Universal ISO FAILED"; CRITICAL_OK=false; }
+          [ "${{ needs.universal-iso-analysis.result }}" = "success" ] && echo "✅ Universal Analysis PASSED" || echo "⚠️  Universal Analysis FAILED"
 
           echo ""
           if $CRITICAL_OK; then
@@ -647,7 +729,7 @@ jobs:
   # ══════════════════════════════════════════════════════════════
   release:
     name: Generate Release
-    needs: [ build, test, security, iso, iso-analysis, universal-iso, summary ]
+    needs: [ build, test, security, iso, iso-analysis, universal-iso, universal-iso-analysis, summary ]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -659,7 +741,7 @@ jobs:
         id: status
         run: |
           echo "TITLE=✅ JulesOS Stable Update v1.0.${{ github.run_number }}" >> $GITHUB_ENV
-          echo "BODY=## ✅ Automated JulesOS Release\nThis release was successfully generated by the JulesOS Build Pipeline.\n\n**Included Assets:**\n- \`JulesOS.iso\` (The bootable hybrid ISO)\n- \`jules_shell\` (The compiled native Rust binary core)\n- Security analysis reports" >> $GITHUB_ENV
+          echo "BODY=## ✅ Automated JulesOS Release\nThis release was successfully generated by the JulesOS Build Pipeline.\n\n**Included Assets:**\n- \`JulesOS-Universal.iso\` (The bootable hybrid ISO for all devices)\n- \`JulesOS-x86_64.iso\`, \`JulesOS-x86.iso\`, \`JulesOS-aarch64.iso\`\n- \`jules_shell\` (The compiled native Rust binary core)\n- Security analysis reports" >> $GITHUB_ENV
 
       - name: 📥 Download all artifacts
         uses: actions/download-artifact@v4
