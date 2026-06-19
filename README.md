@@ -4,8 +4,8 @@
   
   [![Build Status](https://github.com/JONIMONI09/JulesOS/actions/workflows/build.yml/badge.svg)](https://github.com/JONIMONI09/JulesOS/actions/workflows/build.yml)
   [![Security Rating](https://img.shields.io/badge/Security-Trivy_Scanned-blue.svg)](#)
-  [![Platform](https://img.shields.io/badge/Platform-x86__64_|_Android_Limbo-lightgrey)](#)
-  [![Language](https://img.shields.io/badge/Core-Rust_|_Shell-orange.svg)](#)
+  [![Platform](https://img.shields.io/badge/Platform-x86__64_%7C_Android_Limbo-lightgrey)](#)
+  [![Language](https://img.shields.io/badge/Core-Rust_%7C_Shell-orange.svg)](#)
 </div>
 
 ---
@@ -31,24 +31,24 @@ JulesOS relies on a highly layered architecture, booting from a custom virtio-op
 ```mermaid
 graph TD
     %% Boot Process
-    A[Hardware / BIOS / UEFI] -->|Loads| B(Syslinux / GRUB Bootloader)
-    B -->|Extracts| C{JulesOS.iso}
+    A["Hardware / BIOS / UEFI"] -->|Loads| B("Syslinux / GRUB Bootloader")
+    B -->|Extracts| C{"JulesOS.iso"}
     
     %% Kernel & Init
-    C -->|Boots| D[Linux Kernel \n bzImage]
-    D -->|Mounts| E[OverlayFS \n Read-Only RootFS]
+    C -->|Boots| D["Linux Kernel<br/>bzImage"]
+    D -->|Mounts| E["OverlayFS<br/>Read-Only RootFS"]
     
     %% Rust Shell Core
-    E -->|Executes PID 1| F((Jules Shell \n Native Rust))
+    E -->|Executes PID 1| F(("Jules Shell<br/>Native Rust"))
     
     %% Core Features
-    F --> G[Intelligent Resource Daemon \n JRD]
-    F --> H[CachyOS Tunings \n ZRAM, BORE]
-    F --> I[Interactive CLI Interface]
+    F --> G["Intelligent Resource Daemon<br/>JRD"]
+    F --> H["CachyOS Tunings<br/>ZRAM, BORE"]
+    F --> I["Interactive CLI Interface"]
     
     %% Emulation Layer
-    I -.-> J[Cross-Arch Translator \n Box86 / Wine]
-    J -.-> K[Windows .exe / x86]
+    I -.-> J["Cross-Arch Translator<br/>Box86 / Wine"]
+    J -.-> K["Windows .exe / x86"]
 
     style F fill:#e43716,stroke:#333,stroke-width:2px,color:#fff
     style C fill:#0e6b0e,stroke:#333,stroke-width:2px,color:#fff
