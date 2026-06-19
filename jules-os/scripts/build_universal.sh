@@ -17,6 +17,7 @@ rm -rf "${UNIVERSAL_DIR}"
 mkdir -p "${ISO_DIR}/boot/grub"
 
 ARCHS="x86_64 x86 aarch64"
+export SKIP_RUST_BUILD=1
 
 for ARCH in $ARCHS; do
     echo ">>> Building Architecture: $ARCH"

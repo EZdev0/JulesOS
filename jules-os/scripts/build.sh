@@ -114,8 +114,9 @@ step "Step 2/8: Compiling Jules Shell (Rust Core)"
 
 cd "${JULES_DIR}"
 
-# Check if Rust toolchain is available
-if command -v cargo >/dev/null 2>&1; then
+if [ "${SKIP_RUST_BUILD:-0}" = "1" ] && [ -f "${BUILD_DIR}/jules_shell" ]; then
+    info "SKIP_RUST_BUILD is set. Using pre-compiled binary from ${BUILD_DIR}/"
+elif command -v cargo >/dev/null 2>&1; then
     info "Rust toolchain detected: $(rustc --version 2>/dev/null || echo 'unknown')"
 
     # Try cross-compilation for static musl binary (ideal for OS)
@@ -151,7 +152,7 @@ if command -v cargo >/dev/null 2>&1; then
     chmod +x "${BUILD_DIR}/jules_shell"
 
 elif [ -f "${BUILD_DIR}/jules_shell" ]; then
-    # Pre-compiled binary exists (e.g., from CI artifact)
+    # Pre-compiled binary exists but cargo not found
     warn "Rust not installed. Using pre-compiled binary from ${BUILD_DIR}/"
 
 else

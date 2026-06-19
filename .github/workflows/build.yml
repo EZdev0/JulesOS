@@ -465,6 +465,7 @@ jobs:
 
           echo ""
           echo "Running build.sh ${{ matrix.arch }}..."
+          export SKIP_RUST_BUILD=1
           bash scripts/build.sh ${{ matrix.arch }}
 
           echo ""
