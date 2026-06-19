@@ -9,10 +9,8 @@ use std::path::Path;
 
 /// Get the kernel release string via procfs.
 pub fn get_kernel_release() -> String {
-    fs::read_to_string("/proc/sys/kernel/osrelease").map_or_else(
-        |_| "unknown".to_string(),
-        |s| s.trim().to_string(),
-    )
+    fs::read_to_string("/proc/sys/kernel/osrelease")
+        .map_or_else(|_| "unknown".to_string(), |s| s.trim().to_string())
 }
 
 /// Parse /proc/meminfo into a `HashMap` of key → value (in bytes).
@@ -21,7 +19,9 @@ pub fn get_kernel_release() -> String {
 pub fn get_mem_info() -> HashMap<String, u64> {
     let mut mem_data = HashMap::new();
 
-    let Ok(file) = fs::File::open("/proc/meminfo") else { return mem_data };
+    let Ok(file) = fs::File::open("/proc/meminfo") else {
+        return mem_data;
+    };
 
     let reader = io::BufReader::new(file);
     for line in reader.lines() {
@@ -53,7 +53,9 @@ pub fn get_mem_info() -> HashMap<String, u64> {
 ///
 /// Returns (total, used, available, `usage_percent`) in bytes.
 pub fn get_disk_usage(path: &str) -> Option<(u64, u64, u64, f64)> {
-    let Ok(stat) = nix::sys::statvfs::statvfs(path) else { return None };
+    let Ok(stat) = nix::sys::statvfs::statvfs(path) else {
+        return None;
+    };
 
     let total = stat.blocks() * stat.fragment_size();
     let free = stat.blocks_free() * stat.fragment_size();
@@ -120,10 +122,7 @@ pub fn find_executable(candidates: &[&str], fallback: &str) -> String {
 
 /// Get the current working directory as a string.
 pub fn get_cwd() -> String {
-    std::env::current_dir().map_or_else(
-        |_| "/".to_string(),
-        |p| p.to_string_lossy().into_owned(),
-    )
+    std::env::current_dir().map_or_else(|_| "/".to_string(), |p| p.to_string_lossy().into_owned())
 }
 
 // ── Unit Tests ────────────────────────────────────────────────

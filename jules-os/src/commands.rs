@@ -3,7 +3,7 @@
 //! Each command is implemented as a standalone function.
 //! The `execute_command` function dispatches based on user input.
 
-use crate::colors::{CYAN, BOLD, RESET, YELLOW, BLUE, GREEN, MAGENTA, print_error, RED};
+use crate::colors::{print_error, BLUE, BOLD, CYAN, GREEN, MAGENTA, RED, RESET, YELLOW};
 use crate::system;
 use std::ffi::CString;
 use std::io::{self, Write};
@@ -257,7 +257,9 @@ pub fn execute_external(cmd: &str) {
 
     // Reject excessively long commands
     if cmd.len() > MAX_COMMAND_LENGTH {
-        print_error(&format!("Command too long (max {MAX_COMMAND_LENGTH} chars)"));
+        print_error(&format!(
+            "Command too long (max {MAX_COMMAND_LENGTH} chars)"
+        ));
         return;
     }
 

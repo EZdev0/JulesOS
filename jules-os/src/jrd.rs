@@ -15,7 +15,8 @@ struct ProcessStats {
 fn is_emulator() -> bool {
     if let Ok(vendor) = fs::read_to_string("/sys/class/dmi/id/sys_vendor") {
         let v = vendor.to_lowercase();
-        if v.contains("qemu") || v.contains("bochs") || v.contains("kvm") || v.contains("microsoft") {
+        if v.contains("qemu") || v.contains("bochs") || v.contains("kvm") || v.contains("microsoft")
+        {
             return true;
         }
     }
@@ -31,11 +32,18 @@ fn is_emulator() -> bool {
 pub fn start_daemon() {
     let emulator_mode = is_emulator();
     let cpu_limit = if emulator_mode { 65.0 } else { 95.0 };
-    let env_type = if emulator_mode { "Emulator (Limbo/QEMU)" } else { "Native Hardware" };
+    let env_type = if emulator_mode {
+        "Emulator (Limbo/QEMU)"
+    } else {
+        "Native Hardware"
+    };
 
     println!("[JRD] JulesOS Resource Daemon initialized.");
     println!("[JRD] Detected Environment: {}", env_type);
-    println!("[JRD] Dynamic Load Balancing active (CPU Limit: {}%)", cpu_limit);
+    println!(
+        "[JRD] Dynamic Load Balancing active (CPU Limit: {}%)",
+        cpu_limit
+    );
 
     thread::spawn(move || {
         let mut prev_sys_ticks: u64 = get_system_ticks();
@@ -107,9 +115,7 @@ pub fn start_daemon() {
             }
 
             for pid in to_resume {
-                println!(
-                    "\x1b[1;32m[JRD] Resuming PID {pid} (Cooldown complete).\x1b[0m"
-                );
+                println!("\x1b[1;32m[JRD] Resuming PID {pid} (Cooldown complete).\x1b[0m");
                 let _ = Command::new("kill")
                     .arg("-SIGCONT")
                     .arg(pid.to_string())

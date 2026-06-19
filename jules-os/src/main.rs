@@ -27,11 +27,11 @@
 mod colors;
 mod commands;
 mod jrd;
+mod splash;
 mod system;
 mod watchdog;
-mod splash;
 
-use colors::{CYAN, BOLD, RESET, MAGENTA, YELLOW, GREEN, BLUE};
+use colors::{BLUE, BOLD, CYAN, GREEN, MAGENTA, RESET, YELLOW};
 use std::io::{self, BufRead, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -126,9 +126,10 @@ fn setup_crash_handler() {
             },
         };
 
-        let location = info
-            .location()
-            .map_or_else(|| "unknown".to_string(), |l| format!("{}:{}:{}", l.file(), l.line(), l.column()));
+        let location = info.location().map_or_else(
+            || "unknown".to_string(),
+            |l| format!("{}:{}:{}", l.file(), l.line(), l.column()),
+        );
 
         let crash_log = format!(
             "JULES OS CRASH REPORT\n\nError: {msg}\nLocation: {location}\n\nSystem halted to prevent Kernel Panic."

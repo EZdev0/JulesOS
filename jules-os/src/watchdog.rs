@@ -1,17 +1,17 @@
+use crate::colors::{RED, RESET, YELLOW};
+use crate::system;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::thread;
 use std::time::Duration;
-use crate::colors::{YELLOW, RED, RESET};
-use crate::system;
 
 pub fn start_watchdog() {
     println!("{YELLOW}[Watchdog] Starting OS health and hardware watchdog...{RESET}");
-    
+
     thread::spawn(|| {
         loop {
             thread::sleep(Duration::from_secs(10));
-            
+
             // 1. Füttere den Kernel/Hardware Watchdog (falls /dev/watchdog existiert)
             if let Ok(mut file) = OpenOptions::new().write(true).open("/dev/watchdog") {
                 let _ = file.write_all(b"1\n");
@@ -27,7 +27,7 @@ pub fn start_watchdog() {
                     }
                 }
             }
-            
+
             // 3. Zombie Process Analysis (PID 1 Responsibilities)
             let mut zombies = 0;
             if let Ok(entries) = fs::read_dir("/proc") {
@@ -44,7 +44,7 @@ pub fn start_watchdog() {
                     }
                 }
             }
-            
+
             if zombies > 5 {
                 println!("\n{YELLOW}[OS WATCHDOG] WARNING: Detected {zombies} Zombie processes. PID 1 should reap them!{RESET}");
             }

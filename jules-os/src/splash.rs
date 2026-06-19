@@ -1,7 +1,7 @@
+use crate::colors::{BOLD, RESET};
 use std::io::{self, Write};
 use std::thread;
 use std::time::Duration;
-use crate::colors::{RESET, BOLD};
 
 /// Jules AI Agent Octopus - Clean ASCII art splash logo.
 /// Designed for dark terminal backgrounds (init/TTY).
@@ -57,7 +57,10 @@ pub fn run_splash() {
 
     print!("\x1b[?25l"); // Hide cursor
     for _ in 0..32 {
-        print!("\r                    {}{BOLD} Booting Jules AI Agent...{RESET}", frames[i]);
+        print!(
+            "\r                    {}{BOLD} Booting Jules AI Agent...{RESET}",
+            frames[i]
+        );
         let _ = io::stdout().flush();
         i = (i + 1) % frames.len();
         thread::sleep(Duration::from_millis(120));
