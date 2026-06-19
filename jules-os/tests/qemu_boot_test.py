@@ -49,7 +49,7 @@ def run_test():
         ] + machine_args + [
             "-kernel", "iso/boot/bzImage",
             "-initrd", "iso/boot/initrd.img",
-            "-append", f"root=/dev/ram0 rw console={console_dev} quiet loglevel=3 mitigations=off",
+            "-append", f"console={console_dev} quiet loglevel=3 mitigations=off",
             "-nographic",
             "-m", "1024M",
             "-no-reboot"

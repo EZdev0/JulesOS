@@ -20,17 +20,14 @@ TARGET_ARCH=${1:-x86_64}
 if [ "$TARGET_ARCH" = "x86" ]; then
     ALPINE_ARCH="x86"
     RUST_TARGET="i686-unknown-linux-musl"
-    QEMU_ARCH="i386"
 elif [ "$TARGET_ARCH" = "aarch64" ] || [ "$TARGET_ARCH" = "arm64" ]; then
     TARGET_ARCH="aarch64"
     ALPINE_ARCH="aarch64"
     RUST_TARGET="aarch64-unknown-linux-musl"
-    QEMU_ARCH="aarch64"
 else
     TARGET_ARCH="x86_64"
     ALPINE_ARCH="x86_64"
     RUST_TARGET="x86_64-unknown-linux-musl"
-    QEMU_ARCH="x86_64"
 fi
 
 ALPINE_TAR="alpine-minirootfs-${ALPINE_RELEASE}-${ALPINE_ARCH}.tar.gz"
@@ -552,7 +549,7 @@ ok "Initramfs created: ${INITRD_SIZE}"
 step "Step 7/8: Configuring Bootloaders (BIOS + UEFI)"
 
 # Kernel command line (Limbo Emulator Fix & Verbose Matrix Boot)
-KERNEL_CMDLINE="root=/dev/ram0 rw console=tty0 console=ttyS0,115200 nomodeset vga=791 vt.global_cursor_default=0 loglevel=3 mitigations=off nowatchdog no_timer_check"
+KERNEL_CMDLINE="console=tty0 console=ttyS0,115200 nomodeset vga=791 vt.global_cursor_default=0 loglevel=3 mitigations=off nowatchdog no_timer_check"
 
 # ─── 7a. Syslinux (BIOS Boot) ───
 cat > "${ISO_DIR}/boot/syslinux/syslinux.cfg" << EOF_SYSLINUX

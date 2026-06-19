@@ -62,13 +62,13 @@ fi
 
 menuentry "Jules OS Universal (Auto-Detect: ${grub_cpu})" {
     echo "Loading Jules OS for ${target_arch}..."
-    linux /boot/${target_arch}/bzImage root=/dev/ram0 rw ${console_param} quiet loglevel=3 mitigations=off
+    linux /boot/${target_arch}/bzImage console=tty0 console=ttyS0,115200 nomodeset vga=791 vt.global_cursor_default=0 loglevel=3 mitigations=off nowatchdog no_timer_check
     initrd /boot/${target_arch}/initrd.img
 }
 
 menuentry "Jules OS Universal (Debug Mode)" {
     echo "Loading Jules OS Debug for ${target_arch}..."
-    linux /boot/${target_arch}/bzImage root=/dev/ram0 rw ${console_param} loglevel=7 debug mitigations=off
+    linux /boot/${target_arch}/bzImage ${console_param} loglevel=7 debug mitigations=off
     initrd /boot/${target_arch}/initrd.img
 }
 EOF_GRUB
