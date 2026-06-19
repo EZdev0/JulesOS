@@ -89,6 +89,7 @@ install_deps() {
                 qemu-system-x86 qemu-utils mtools dosfstools
             if ! command -v cargo >/dev/null 2>&1; then
                 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+                # shellcheck disable=SC1091
                 source "$HOME/.cargo/env" || true
             fi
             ;;

@@ -72,8 +72,7 @@ for script in scripts/init.sh scripts/build.sh scripts/install.sh scripts/boot.s
             *bash*) CHECKER="bash" ;;
             *)      CHECKER="sh" ;;
         esac
-        $CHECKER -n "$script" 2>&1
-        if [ $? -eq 0 ]; then
+        if $CHECKER -n "$script" 2>&1; then
             echo "  PASS: $script ($CHECKER)"
         else
             echo "  FAIL: $script ($CHECKER)"

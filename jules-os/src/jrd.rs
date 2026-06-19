@@ -39,11 +39,8 @@ pub fn start_daemon() {
     };
 
     println!("[JRD] JulesOS Resource Daemon initialized.");
-    println!("[JRD] Detected Environment: {}", env_type);
-    println!(
-        "[JRD] Dynamic Load Balancing active (CPU Limit: {}%)",
-        cpu_limit
-    );
+    println!("[JRD] Detected Environment: {env_type}");
+    println!("[JRD] Dynamic Load Balancing active (CPU Limit: {cpu_limit}%)");
 
     thread::spawn(move || {
         let mut prev_sys_ticks: u64 = get_system_ticks();
