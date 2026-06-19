@@ -62,7 +62,7 @@ jobs:
 
       - name: 🔧 Install cross-compiler (aarch64)
         if: matrix.arch == 'aarch64'
-        run: sudo apt-get install -y -qq --no-install-recommends gcc-aarch64-linux-gnu
+        run: sudo apt-get install -y -qq --no-install-recommends gcc-aarch64-linux-gnu qemu-user-static
 
       - name: 🔧 Install cross-compiler (x86)
         if: matrix.arch == 'x86'
@@ -190,7 +190,7 @@ jobs:
 
       - name: 🔧 Install cross-compiler (aarch64)
         if: matrix.arch == 'aarch64'
-        run: sudo apt-get install -y -qq --no-install-recommends gcc-aarch64-linux-gnu
+        run: sudo apt-get install -y -qq --no-install-recommends gcc-aarch64-linux-gnu qemu-user-static
 
       - name: 🔧 Install cross-compiler (x86)
         if: matrix.arch == 'x86'
