@@ -8,18 +8,17 @@ that the OS boots successfully and the immutable core is active.
 import subprocess
 import sys
 import time
-import re
-
 import argparse
 
 def run_test():
+    """Execute the QEMU boot validation test."""
     parser = argparse.ArgumentParser(description="Jules OS QEMU Boot Validation")
     parser.add_argument("--arch", default="x86_64", help="Target architecture to test")
     parser.add_argument("--universal", action="store_true", help="Test the Universal ISO via CDROM")
     args = parser.parse_args()
 
     print(f"🚀 [Sub-Agent] Starting QEMU Boot Validation for Jules OS ({args.arch})...")
-    
+
     # Configure architecture-specific QEMU arguments
     if args.arch == "aarch64" or args.arch == "arm64":
         qemu_bin = "qemu-system-aarch64"
@@ -33,7 +32,7 @@ def run_test():
         qemu_bin = "qemu-system-x86_64"
         machine_args = []
         console_dev = "ttyS0"
-        
+
     if args.universal:
         qemu_cmd = [
             qemu_bin,
@@ -54,7 +53,7 @@ def run_test():
             "-m", "1024M",
             "-no-reboot"
         ]
-    
+
     try:
         # Start QEMU
         process = subprocess.Popen(
@@ -74,40 +73,40 @@ def run_test():
         "Jules OS v1.0.0 initialized successfully",
         "Handing over control to Jules Shell (Rust Core)"
     ]
-    
+
     found_markers = set()
     timeout = 90  # seconds
     start_time = time.time()
-    
+
     print(f"⏳ [Sub-Agent] Waiting for boot sequence (Timeout: {timeout}s)...")
-    
+
     # Read output line by line
     while True:
         if time.time() - start_time > timeout:
             print(f"❌ [Sub-Agent] Boot timed out after {timeout} seconds.")
             process.kill()
             sys.exit(1)
-            
+
         line = process.stdout.readline()
         if not line and process.poll() is not None:
             break
-            
+
         if line:
             line = line.strip()
             # print(f"  [QEMU] {line}")  # Uncomment for verbose debug
-            
+
             # Check for markers
             for marker in success_markers:
                 if marker in line and marker not in found_markers:
                     found_markers.add(marker)
                     print(f"✅ [Sub-Agent] Reached milestone: {marker}")
-                    
+
             # Check for failures
             if "Kernel panic" in line or "Oops" in line:
                 print(f"💥 [Sub-Agent] FATAL ERROR DETECTED: {line}")
                 process.kill()
                 sys.exit(1)
-                
+
             # If all markers found, we successfully booted
             if len(found_markers) == len(success_markers):
                 print("🎉 [Sub-Agent] FULL BOOT SUCCESS! Jules OS is functional and indestructible.")
