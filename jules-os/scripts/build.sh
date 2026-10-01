@@ -316,7 +316,7 @@ if [ -n "$APK_STATIC_PKG" ]; then
             warn "Desktop packages failed to install perfectly. See logs/desktop_install.log"
             mkdir -p "${JULES_DIR}/logs"
             cp "${BUILD_DIR}/desktop_install.log" "${JULES_DIR}/logs/" 2>/dev/null || true
-            fail "Desktop package installation failed; aborting to avoid partially installed rootfs."
+            error "Desktop package installation failed; aborting to avoid partially installed rootfs."
         fi
     else
         warn "Failed to extract apk.static. Desktop may not be available."
