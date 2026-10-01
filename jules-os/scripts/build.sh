@@ -36,6 +36,14 @@ ALPINE_SHA_URL="${ALPINE_URL}.sha256"
 ALPINE_REPO="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}"
 ISO_OUTPUT="${JULES_DIR}/JulesOS-${TARGET_ARCH}.iso"
 
+HOST_UNAME_ARCH="$(uname -m)"
+case "${HOST_UNAME_ARCH}" in
+    x86_64|amd64) APK_TOOL_ARCH="x86_64" ;;
+    aarch64|arm64) APK_TOOL_ARCH="aarch64" ;;
+    i386|i686) APK_TOOL_ARCH="x86" ;;
+    *) APK_TOOL_ARCH="x86_64" ;;
+esac
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -281,10 +289,10 @@ cd "${JULES_DIR}"
 step "Step 4.5/8: Installing Desktop & Plymouth (Offline)"
 
 info "Downloading apk-tools-static for offline package installation..."
-APK_STATIC_PKG=$(wget -qO- "${ALPINE_REPO}/main/${ALPINE_ARCH}/" 2>/dev/null | grep -oE 'apk-tools-static-[0-9][a-zA-Z0-9._-]*\.apk' | sort -V | tail -n 1) || true
+APK_STATIC_PKG=$(wget -qO- "${ALPINE_REPO}/main/${APK_TOOL_ARCH}/" 2>/dev/null | grep -oE 'apk-tools-static-[0-9][a-zA-Z0-9._-]*\.apk' | sort -V | tail -n 1) || true
 if [ -n "$APK_STATIC_PKG" ]; then
     cd "${BUILD_DIR}"
-    wget -q "${ALPINE_REPO}/main/${ALPINE_ARCH}/${APK_STATIC_PKG}" 2>/dev/null || true
+    wget -q "${ALPINE_REPO}/main/${APK_TOOL_ARCH}/${APK_STATIC_PKG}" 2>/dev/null || true
     tar -zxf "${APK_STATIC_PKG}" sbin/apk.static 2>/dev/null || true
     
     if [ -f sbin/apk.static ]; then
@@ -315,6 +323,7 @@ if [ -n "$APK_STATIC_PKG" ]; then
         APK_BASE_ARGS=(
             -X "${ALPINE_REPO}/main" -X "${ALPINE_REPO}/community"
             -U --allow-untrusted --root "${ROOTFS_DIR}" --initdb --no-scripts
+            --arch "${ALPINE_ARCH}"
         )
 
         if ./sbin/apk.static "${APK_BASE_ARGS[@]}" --no-chown add "${DESKTOP_PACKAGES[@]}" > "${BUILD_DIR}/desktop_install.log" 2>&1; then
