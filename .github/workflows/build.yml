@@ -44,8 +44,8 @@ jobs:
           if [ "${{ matrix.arch }}" = "x86" ]; then echo "RUST_TARGET=i686-unknown-linux-musl" >> $GITHUB_ENV;
           elif [ "${{ matrix.arch }}" = "aarch64" ]; then 
             echo "RUST_TARGET=aarch64-unknown-linux-musl" >> $GITHUB_ENV
-            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-            echo "CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+            # removed
+            # removed
           else echo "RUST_TARGET=x86_64-unknown-linux-musl" >> $GITHUB_ENV; fi
 
       - name: 🦀 Install Rust Toolchain
@@ -183,8 +183,8 @@ jobs:
           if [ "${{ matrix.arch }}" = "x86" ]; then echo "RUST_TARGET=i686-unknown-linux-musl" >> $GITHUB_ENV;
           elif [ "${{ matrix.arch }}" = "aarch64" ]; then 
             echo "RUST_TARGET=aarch64-unknown-linux-musl" >> $GITHUB_ENV
-            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-            echo "CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+            # removed
+            # removed
           else echo "RUST_TARGET=x86_64-unknown-linux-musl" >> $GITHUB_ENV; fi
 
       - name: 🦀 Install Rust Toolchain
@@ -221,7 +221,7 @@ jobs:
           echo "════════════════════════════════════════"
 
           # Build the binary for component tests
-          cargo build --release --target ${{ env.RUST_TARGET }}
+          if [ "${{ matrix.arch }}" = "x86_64" ] || [ "${{ matrix.arch }}" = "x86" ]; then cargo build --release --target ${{ env.RUST_TARGET }}; else cross build --release --target ${{ env.RUST_TARGET }}; fi
           BINARY="target/${{ env.RUST_TARGET }}/release/jules_shell"
           chmod +x "$BINARY"
 

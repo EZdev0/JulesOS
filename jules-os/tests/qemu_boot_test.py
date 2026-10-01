@@ -37,7 +37,7 @@ def run_test():
         qemu_cmd = [
             qemu_bin,
         ] + machine_args + [
-            "-cdrom", "JulesOS-Universal.iso",
+            "-cdrom", "JulesOS-Universal.iso", "-boot", "d",
             "-nographic",
             "-m", "1024M",
             "-no-reboot"
