@@ -554,7 +554,7 @@ KERNEL_CMDLINE="console=tty0 console=ttyS0,115200 nomodeset vga=791 vt.global_cu
 # ─── 7a. Syslinux (BIOS Boot) ───
 cat > "${ISO_DIR}/boot/syslinux/syslinux.cfg" << EOF_SYSLINUX
 PROMPT 0
-TIMEOUT 150
+TIMEOUT 1
 DEFAULT jules
 
 MENU TITLE Jules OS Boot Menu
@@ -578,7 +578,7 @@ ok "Syslinux (BIOS) configured."
 
 # ─── 7b. GRUB (UEFI Boot) ───
 cat > "${ISO_DIR}/boot/grub/grub.cfg" << EOF_GRUB
-set timeout=15
+set timeout=1
 set default=0
 
 menuentry "Jules OS v1.0.0 (Immutable Core)" {

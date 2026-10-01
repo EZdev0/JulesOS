@@ -39,7 +39,7 @@ def run_test():
         ] + machine_args + [
             "-cdrom", "JulesOS-Universal.iso", "-boot", "d",
             "-nographic",
-            "-m", "1024M",
+            "-m", "2048M",
             "-no-reboot"
         ]
     else:
@@ -50,7 +50,7 @@ def run_test():
             "-initrd", "iso/boot/initrd.img",
             "-append", f"root=/dev/ram0 rw console={console_dev} quiet loglevel=3 mitigations=off",
             "-nographic",
-            "-m", "1024M",
+            "-m", "2048M",
             "-no-reboot"
         ]
 
