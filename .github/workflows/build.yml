@@ -513,6 +513,15 @@ jobs:
             [ -f iso/boot/grub/grub.cfg ] && echo "✅ GRUB config present"
           fi
 
+      - name: 🔎 Check QEMU Resources
+        run: |
+          echo "════════════════════════════════════════"
+          echo "🔎 QEMU RESOURCE CHECK"
+          echo "════════════════════════════════════════"
+          free -h
+          df -h
+          qemu-system-x86_64 --version
+
       - name: "🤖 Sub-Agent QEMU Boot Validation"
         working-directory: ./jules-os
         run: |

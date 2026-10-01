@@ -22,36 +22,46 @@ def run_test():
     # Configure architecture-specific QEMU arguments
     if args.arch == "aarch64" or args.arch == "arm64":
         qemu_bin = "qemu-system-aarch64"
-        machine_args = ["-machine", "virt", "-cpu", "max"]
+        machine_args = ["-machine", "virt", "-cpu", "cortex-a57"]
         console_dev = "ttyAMA0"
     elif args.arch == "x86" or args.arch == "i386" or args.arch == "i686":
         qemu_bin = "qemu-system-i386"
-        machine_args = []
+        machine_args = ["-machine", "pc"]
         console_dev = "ttyS0"
     else:
         qemu_bin = "qemu-system-x86_64"
-        machine_args = []
+        machine_args = ["-machine", "q35"]
         console_dev = "ttyS0"
+
+    memory = "1024M"
+    cpus = "2"
+    common_args = [
+        "-m", memory,
+        "-smp", cpus,
+        "-accel", "tcg,thread=multi",
+        "-nographic",
+        "-serial", "stdio",
+        "-no-reboot",
+        "-no-shutdown",
+    ]
 
     if args.universal:
         qemu_cmd = [
             qemu_bin,
-        ] + machine_args + [
+        ] + machine_args + common_args + [
             "-cdrom", "JulesOS-Universal.iso", "-boot", "d",
-            "-nographic",
-            "-m", "1024M",
-            "-no-reboot"
         ]
     else:
+        kernel_cmdline = (
+            f"root=/dev/ram0 rw console={console_dev} "
+            "panic=1 loglevel=7 ignore_loglevel mitigations=off"
+        )
         qemu_cmd = [
             qemu_bin,
-        ] + machine_args + [
+        ] + machine_args + common_args + [
             "-kernel", "iso/boot/bzImage",
             "-initrd", "iso/boot/initrd.img",
-            "-append", f"root=/dev/ram0 rw console={console_dev} quiet loglevel=3 mitigations=off",
-            "-nographic",
-            "-m", "1024M",
-            "-no-reboot"
+            "-append", kernel_cmdline,
         ]
 
     try:
