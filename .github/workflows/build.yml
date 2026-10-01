@@ -221,7 +221,7 @@ jobs:
           echo "════════════════════════════════════════"
 
           # Build the binary for component tests
-          cargo build --release --target ${{ env.RUST_TARGET }}
+          if [ "${{ matrix.arch }}" = "x86_64" ] || [ "${{ matrix.arch }}" = "x86" ]; then cargo build --release --target ${{ env.RUST_TARGET }}; else cross build --release --target ${{ env.RUST_TARGET }}; fi
           BINARY="target/${{ env.RUST_TARGET }}/release/jules_shell"
           chmod +x "$BINARY"
 
